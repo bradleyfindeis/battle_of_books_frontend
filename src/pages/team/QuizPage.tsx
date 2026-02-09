@@ -206,16 +206,17 @@ export function QuizPage() {
   }, [team?.book_list_id]);
 
   const startQuizWithMode = (mode: 'all' | 'my_books') => {
-    if (!team?.book_list_id) return;
+    const bookListId = team?.book_list_id;
+    if (!bookListId) return;
     setQuizMode(mode);
     setQuestionsLoading(true);
     api
-      .getQuizQuestions(team.book_list_id, { mode })
+      .getQuizQuestions(bookListId, { mode })
       .then((data) => {
         setQuestions(shuffle(data));
         setTotalCount(data.length * 2);
         const total = data.length * 2;
-        api.startQuizAttempt(team.book_list_id, total).then((res) => setAttemptId(res.attempt_id)).catch(() => {});
+        api.startQuizAttempt(bookListId, total).then((res) => setAttemptId(res.attempt_id)).catch(() => {});
       })
       .catch(() => setQuestions([]))
       .finally(() => setQuestionsLoading(false));
@@ -815,7 +816,7 @@ export function QuizPage() {
               setChallengeModalQuestion(null);
               setChallengeResult(null);
             }}
-            onSubmitted={(upheld, newCorrectCount, newHighScore) => {
+            onSubmitted={(upheld, _newCorrectCount, newHighScore) => {
               setChallengedQuestionIds((prev) => [...prev, challengeModalQuestion.id]);
               setChallengeResult(upheld ? 'upheld' : 'denied');
               if (upheld) {

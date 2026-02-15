@@ -5,9 +5,45 @@ import { api } from '../../api/client';
 import type { Book } from '../../api/client';
 
 /* ---------- TypeScript types for Web Speech API ---------- */
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+interface SpeechRecognitionResult {
+  readonly length: number;
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResult;
+}
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionInstance;
+}
 declare global {
   interface Window {
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
   }
 }
 
@@ -102,8 +138,9 @@ const speechSupported =
   ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
 /** Create a SpeechRecognition instance (only call when speechSupported is true). */
-function createRecognition(): SpeechRecognition {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function createRecognition(): SpeechRecognitionInstance {
+  const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+  if (!SR) throw new Error('SpeechRecognition not supported');
   const recognition = new SR();
   recognition.lang = 'en-US';
   recognition.continuous = false;
@@ -130,7 +167,7 @@ export function FlashcardDeckPage() {
   const [useVoice, setUseVoice] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<VoiceFeedback>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {

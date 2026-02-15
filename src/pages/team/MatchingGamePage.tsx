@@ -42,7 +42,7 @@ export function MatchingGamePage() {
   const [difficulty, setDifficulty] = useState<Difficulty>('hard');
   const [correctCount, setCorrectCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  const [score, setScore] = useState(0);
+  const [, setScore] = useState(0);
   const [highScore, setHighScore] = useState<number | null>(null);
   const [submitError, setSubmitError] = useState('');
   const [checking, setChecking] = useState(false);

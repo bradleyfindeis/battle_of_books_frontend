@@ -14,6 +14,11 @@ import { MatchingGamePage } from './pages/team/MatchingGamePage';
 import { FlashcardDeckPage } from './pages/team/FlashcardDeckPage';
 import { QuizPage } from './pages/team/QuizPage';
 import { QuizMatchPage } from './pages/team/QuizMatchPage';
+import { TeamManagementPage } from './pages/team/TeamManagementPage';
+import { BooksAssignmentsPage } from './pages/team/BooksAssignmentsPage';
+import { LeaderboardPage } from './pages/team/LeaderboardPage';
+import { MatchHistoryPage } from './pages/team/MatchHistoryPage';
+import { MyProgressPage } from './pages/team/MyProgressPage';
 import { TeamLayout } from './components/TeamLayout';
 import { api } from './api/client';
 
@@ -28,14 +33,14 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function TeamRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, isAdmin } = useAuth();
 
   if (isLoading) {
     return <LoadingSpinner />;
   }
 
   if (!isAuthenticated || !user) {
-    return <Navigate to="/team/login" replace />;
+    return <Navigate to={isAdmin ? '/admin' : '/team/login'} replace />;
   }
 
   return <TeamLayout>{children}</TeamLayout>;
@@ -100,9 +105,14 @@ function App() {
           <Route path="/team" element={<TeamRoute><TeamHome /></TeamRoute>} />
           <Route path="/team/choose-list" element={<TeamRoute><ChooseListGuard><ChooseBookListPage /></ChooseListGuard></TeamRoute>} />
           <Route path="/team/dashboard" element={<TeamRoute><TeamDashboard /></TeamRoute>} />
+          <Route path="/team/management" element={<TeamRoute><TeamManagementPage /></TeamRoute>} />
+          <Route path="/team/books" element={<TeamRoute><BooksAssignmentsPage /></TeamRoute>} />
           <Route path="/team/matching-game" element={<TeamRoute><MatchingGamePage /></TeamRoute>} />
           <Route path="/team/flashcards" element={<TeamRoute><FlashcardDeckPage /></TeamRoute>} />
           <Route path="/team/quiz" element={<TeamRoute><QuizPage /></TeamRoute>} />
+          <Route path="/team/leaderboard" element={<TeamRoute><LeaderboardPage /></TeamRoute>} />
+          <Route path="/team/match-history" element={<TeamRoute><MatchHistoryPage /></TeamRoute>} />
+          <Route path="/team/my-progress" element={<TeamRoute><MyProgressPage /></TeamRoute>} />
           <Route path="/team/quiz-match/:id" element={<TeamRoute><QuizMatchPage /></TeamRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

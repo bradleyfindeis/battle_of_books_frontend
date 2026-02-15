@@ -1,11 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/useAuth';
 import { api } from '../api/client';
 import type { QuizMatchState } from '../api/client';
 
 const POLL_INTERVAL_MS = 5000;
 
+const TEAM_LEAD_NAV = [
+  { to: '/team/dashboard', label: 'Dashboard' },
+  { to: '/team/management', label: 'Team management' },
+  { to: '/team/books', label: 'Books & assignments' },
+];
+
 export function TeamLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [pendingInvite, setPendingInvite] = useState<QuizMatchState | null>(null);
   const location = useLocation();
 
@@ -31,6 +39,7 @@ export function TeamLayout({ children }: { children: React.ReactNode }) {
     pendingInvite &&
     location.pathname === `/team/quiz-match/${pendingInvite.id}`;
   const showBanner = pendingInvite != null && !onMatchPage;
+  const showTabs = user?.role === 'team_lead';
 
   return (
     <>
@@ -49,6 +58,28 @@ export function TeamLayout({ children }: { children: React.ReactNode }) {
           >
             Accept or decline →
           </Link>
+        </div>
+      )}
+      {showTabs && (
+        <div className="bg-white border-b border-stone-200">
+          <div className="flex gap-1 px-4 mx-auto max-w-7xl">
+            {TEAM_LEAD_NAV.map((item) => {
+              const isActive = location.pathname === item.to;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition ${
+                    isActive
+                      ? 'border-primary-600 text-primary-700'
+                      : 'border-transparent text-stone-500 hover:text-stone-700 hover:border-stone-300'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       )}
       {children}

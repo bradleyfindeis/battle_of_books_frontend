@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import confetti from 'canvas-confetti';
+import { celebrationBurst, smallBurst } from '../../utils/confetti';
 import { useAuth } from '../../contexts/useAuth';
 import { api } from '../../api/client';
 import type { Book } from '../../api/client';
@@ -20,8 +20,17 @@ interface BookItem {
   author: string;
 }
 
+type Difficulty = 'easy' | 'medium' | 'hard';
+
+const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+};
+
 export function MatchingGamePage() {
   const { user, team } = useAuth();
+  const [allBooks, setAllBooks] = useState<BookItem[]>([]);
   const [books, setBooks] = useState<BookItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [shuffledTitles, setShuffledTitles] = useState<BookItem[]>([]);
@@ -29,13 +38,15 @@ export function MatchingGamePage() {
   const [pairs, setPairs] = useState<Record<number, number>>({}); // bookId -> authorIndex
   const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
   const [selectedAuthorIndex, setSelectedAuthorIndex] = useState<number | null>(null);
-  const [phase, setPhase] = useState<'playing' | 'submitted'>('playing');
+  const [phase, setPhase] = useState<'difficulty_select' | 'playing' | 'submitted'>('difficulty_select');
+  const [difficulty, setDifficulty] = useState<Difficulty>('hard');
   const [correctCount, setCorrectCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState<number | null>(null);
   const [submitError, setSubmitError] = useState('');
   const [checking, setChecking] = useState(false);
+  const [pairResults, setPairResults] = useState<Record<number, boolean>>({}); // bookId -> correct?
 
   useEffect(() => {
     let cancelled = false;
@@ -46,19 +57,34 @@ export function MatchingGamePage() {
         const withAuthor = data
           .filter((b) => b.author != null && String(b.author).trim() !== '')
           .map((b) => ({ id: b.id, title: b.title, author: String(b.author).trim() }));
-        setBooks(withAuthor);
-        setShuffledTitles(shuffle(withAuthor));
-        setShuffledAuthors(shuffle(withAuthor.map((b) => b.author)));
-        setTotalCount(withAuthor.length);
+        setAllBooks(withAuthor);
       })
       .catch(() => {
-        if (!cancelled) setBooks([]);
+        if (!cancelled) setAllBooks([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
   }, []);
+
+  const startGame = (diff: Difficulty) => {
+    const count = diff === 'easy' ? 5 : diff === 'medium' ? 10 : allBooks.length;
+    const selected = shuffle(allBooks).slice(0, Math.min(count, allBooks.length));
+    setDifficulty(diff);
+    setBooks(selected);
+    setShuffledTitles(shuffle(selected));
+    setShuffledAuthors(shuffle(selected.map((b) => b.author)));
+    setTotalCount(selected.length);
+    setPairs({});
+    setSelectedBookId(null);
+    setSelectedAuthorIndex(null);
+    setPairResults({});
+    setCorrectCount(0);
+    setScore(0);
+    setSubmitError('');
+    setPhase('playing');
+  };
 
   const handleBookClick = (bookId: number) => {
     if (phase !== 'playing') return;
@@ -84,16 +110,19 @@ export function MatchingGamePage() {
   };
 
   const pairedCount = Object.keys(pairs).length;
-  const allPaired = totalCount > 0 && pairedCount === totalCount;
 
   const handleCheckAnswers = async () => {
-    if (!allPaired || checking) return;
+    if (pairedCount === 0 || checking) return;
     setChecking(true);
     let correct = 0;
     const correctMap = new Map(books.map((b) => [b.id, b.author]));
+    const results: Record<number, boolean> = {};
     for (const [bookId, authorIndex] of Object.entries(pairs)) {
-      if (correctMap.get(Number(bookId)) === shuffledAuthors[authorIndex]) correct++;
+      const isCorrect = correctMap.get(Number(bookId)) === shuffledAuthors[authorIndex];
+      results[Number(bookId)] = isCorrect;
+      if (isCorrect) correct++;
     }
+    setPairResults(results);
     setCorrectCount(correct);
     setScore(correct);
     setSubmitError('');
@@ -101,7 +130,9 @@ export function MatchingGamePage() {
       const res = await api.submitMatchingGameAttempt(correct, totalCount, correct);
       setHighScore(res.high_score);
       if (correct === totalCount) {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        celebrationBurst();
+      } else if (totalCount > 0 && correct / totalCount >= 0.8) {
+        smallBurst();
       }
       setPhase('submitted');
     } catch {
@@ -124,7 +155,7 @@ export function MatchingGamePage() {
     );
   }
 
-  if (books.length < 2) {
+  if (allBooks.length < 2) {
     return (
       <div className="min-h-screen bg-stone-50">
         <nav className="border-b border-stone-200 bg-white shadow-sm">
@@ -138,11 +169,13 @@ export function MatchingGamePage() {
             </Link>
           </div>
         </nav>
-        <div className="mx-auto max-w-7xl px-4 py-12 text-center">
-          <p className="text-stone-600">Add more books with authors to play the Matching Game.</p>
+        <div className="mx-auto max-w-md px-4 py-12 text-center">
+          <p className="text-3xl mb-3" aria-hidden>🧩</p>
+          <h2 className="text-lg font-semibold text-stone-900">Not enough books yet</h2>
+          <p className="mt-2 text-stone-600">The Matching Game needs at least 2 books with authors. Ask your team lead to add more books to get started.</p>
           <Link
             to="/team/dashboard"
-            className="mt-4 inline-block text-primary-600 hover:text-primary-700 font-medium transition duration-200"
+            className="mt-5 inline-block rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
           >
             Back to dashboard
           </Link>
@@ -151,19 +184,16 @@ export function MatchingGamePage() {
     );
   }
 
-  const resultMessage =
-    score === totalCount
-      ? 'Perfect! You got them all!'
-      : score >= 15 && score <= 19
-        ? 'Great Job!'
-        : 'Keep going — every match you learn helps. Try again whenever you\'re ready!';
+  // --- Difficulty selection screen ---
+  if (phase === 'difficulty_select') {
+    const easyCount = Math.min(5, allBooks.length);
+    const mediumCount = Math.min(10, allBooks.length);
 
-  if (phase === 'submitted') {
     return (
       <div className="min-h-screen bg-stone-50">
         <nav className="border-b border-stone-200 bg-white shadow-sm">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-            <h1 className="text-xl font-bold tracking-tight text-stone-900">Battle of the Books</h1>
+            <h1 className="text-xl font-bold tracking-tight text-stone-900">Matching Game</h1>
             <Link
               to="/team/dashboard"
               className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
@@ -172,34 +202,165 @@ export function MatchingGamePage() {
             </Link>
           </div>
         </nav>
-        <div className="mx-auto max-w-7xl px-4 py-12">
-          <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-card border border-stone-100">
-            <h2 className="text-lg font-semibold text-stone-900">Round complete</h2>
-            <p className="mt-3 text-lg font-medium text-stone-900">{resultMessage}</p>
-            <p className="mt-2 text-stone-600">
-              You got {correctCount} out of {totalCount} correct. Score: {score}.
-            </p>
-            {submitError && <p className="mt-2 text-sm text-red-600">{submitError}</p>}
-            {highScore !== null && (
-              <p className="mt-2 font-medium text-stone-900">Your high score: {highScore}</p>
-            )}
-            <Link
-              to="/team/dashboard"
-              className="mt-6 inline-block rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
+        <div className="mx-auto max-w-md px-4 py-12">
+          <h2 className="text-lg font-semibold text-stone-900">Choose difficulty</h2>
+          <p className="mt-2 text-stone-600">Match book titles to their authors. Pick how many pairs you want.</p>
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              onClick={() => startGame('easy')}
+              className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm shadow-sm transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
             >
-              Back to dashboard
-            </Link>
+              <span className="font-medium text-stone-900">Easy</span>
+              <span className="mt-1 block text-stone-500">{easyCount} pairs -- a quick warm-up</span>
+            </button>
+            {allBooks.length > 5 && (
+              <button
+                type="button"
+                onClick={() => startGame('medium')}
+                className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm shadow-sm transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              >
+                <span className="font-medium text-stone-900">Medium</span>
+                <span className="mt-1 block text-stone-500">{mediumCount} pairs -- a solid challenge</span>
+              </button>
+            )}
+            {allBooks.length > 10 && (
+              <button
+                type="button"
+                onClick={() => startGame('hard')}
+                className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm shadow-sm transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              >
+                <span className="font-medium text-stone-900">Hard</span>
+                <span className="mt-1 block text-stone-500">All {allBooks.length} pairs -- the full list</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
+  // --- Results screen ---
+  if (phase === 'submitted') {
+    const ratio = totalCount > 0 ? correctCount / totalCount : 0;
+    const resultMessage =
+      correctCount === totalCount
+        ? 'Perfect! You got them all!'
+        : ratio >= 0.8
+          ? 'Great job!'
+          : ratio >= 0.5
+            ? 'Good effort -- keep practicing!'
+            : 'Keep going -- every match you learn helps. Try again whenever you\'re ready!';
+
+    // Build ordered list of results for display
+    const resultsList = shuffledTitles.map((book) => {
+      const authorIndex = pairs[book.id];
+      const chosenAuthor = authorIndex !== undefined ? shuffledAuthors[authorIndex] : null;
+      const correct = pairResults[book.id] ?? false;
+      const paired = authorIndex !== undefined;
+      return { book, chosenAuthor, correct, paired };
+    });
+
+    return (
+      <div className="min-h-screen bg-stone-50">
+        <nav className="border-b border-stone-200 bg-white shadow-sm">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+            <h1 className="text-xl font-bold tracking-tight text-stone-900">Matching Game</h1>
+            <Link
+              to="/team/dashboard"
+              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            >
+              Back to dashboard
+            </Link>
+          </div>
+        </nav>
+        <div className="mx-auto max-w-2xl px-4 py-12">
+          <div className="rounded-2xl bg-white p-6 shadow-card border border-stone-100">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-stone-900">Round complete</h2>
+              <span className="text-xs font-medium text-stone-500 bg-stone-100 px-2 py-1 rounded">{DIFFICULTY_LABELS[difficulty]}</span>
+            </div>
+            <p className="mt-3 text-lg font-medium text-stone-900">{resultMessage}</p>
+            <p className="mt-2 text-stone-600">
+              {correctCount} out of {totalCount} correct.
+              {pairedCount < totalCount && ` (${totalCount - pairedCount} unpaired)`}
+            </p>
+            {submitError && <p className="mt-2 text-sm text-red-600">{submitError}</p>}
+            {highScore !== null && (
+              <p className="mt-2 font-medium text-stone-900">Your high score: {highScore}</p>
+            )}
+
+            {/* Pair-by-pair breakdown */}
+            <div className="mt-6 border-t border-stone-200 pt-4">
+              <h3 className="text-sm font-medium text-stone-700 mb-3">Results</h3>
+              <ul className="space-y-2 text-sm">
+                {resultsList.map(({ book, chosenAuthor, correct, paired }) => (
+                  <li
+                    key={book.id}
+                    className={`flex items-start gap-2 rounded-lg border p-3 ${
+                      !paired
+                        ? 'border-stone-200 bg-stone-50'
+                        : correct
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : 'border-red-200 bg-red-50'
+                    }`}
+                  >
+                    <span className="mt-0.5 shrink-0">
+                      {!paired ? (
+                        <span className="text-stone-400">--</span>
+                      ) : correct ? (
+                        <span className="text-emerald-600">&#10003;</span>
+                      ) : (
+                        <span className="text-red-600">&#10007;</span>
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-stone-900">{book.title}</p>
+                      {paired ? (
+                        correct ? (
+                          <p className="text-emerald-700">{chosenAuthor}</p>
+                        ) : (
+                          <>
+                            <p className="text-red-700 line-through">{chosenAuthor}</p>
+                            <p className="text-stone-600">Correct: {book.author}</p>
+                          </>
+                        )
+                      ) : (
+                        <p className="text-stone-500">Not paired -- correct: {book.author}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setPhase('difficulty_select')}
+                className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              >
+                Play again
+              </button>
+              <Link
+                to="/team/dashboard"
+                className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-center text-sm font-medium text-stone-700 transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              >
+                Back to dashboard
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Playing phase ---
   return (
     <div className="min-h-screen bg-stone-50">
       <nav className="border-b border-stone-200 bg-white shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-          <h1 className="text-xl font-bold tracking-tight text-stone-900">Matching Game — Match book to author</h1>
+          <h1 className="text-xl font-bold tracking-tight text-stone-900">Matching Game</h1>
           <Link
             to="/team/dashboard"
             className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
@@ -209,9 +370,14 @@ export function MatchingGamePage() {
         </div>
       </nav>
       <div className="mx-auto max-w-7xl px-4 py-8">
-        <p className="mb-6 text-sm text-stone-600">
-          Click a book title, then click the matching author. When all are paired, check your answers.
-        </p>
+        <div className="mb-6 flex items-center justify-between">
+          <p className="text-sm text-stone-600">
+            Click a book title, then click the matching author.
+          </p>
+          <span className="text-xs font-medium text-stone-500 bg-stone-100 px-2 py-1 rounded">
+            {DIFFICULTY_LABELS[difficulty]} · {pairedCount}/{totalCount} paired
+          </span>
+        </div>
 
         <div className="grid gap-8 md:grid-cols-2">
           <div>
@@ -237,7 +403,7 @@ export function MatchingGamePage() {
                       aria-label={pairedAuthor != null ? `Book: ${book.title}, paired with ${pairedAuthor}` : `Book: ${book.title}`}
                     >
                       <span className="font-medium">{book.title}</span>
-                      {pairedAuthor != null && phase === 'playing' && (
+                      {pairedAuthor != null && (
                         <span className="ml-2 text-stone-500">→ {pairedAuthor}</span>
                       )}
                     </button>
@@ -276,7 +442,7 @@ export function MatchingGamePage() {
           </div>
         </div>
 
-        {allPaired && phase === 'playing' && (
+        {pairedCount > 0 && phase === 'playing' && (
           <div className="mt-8 flex justify-center">
             <button
               type="button"
@@ -284,7 +450,7 @@ export function MatchingGamePage() {
               disabled={checking}
               className="rounded-lg bg-primary-600 px-6 py-2.5 text-sm font-medium text-white transition duration-200 hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {checking ? 'Saving…' : 'Check answers'}
+              {checking ? 'Saving…' : pairedCount === totalCount ? 'Check answers' : `Check answers (${pairedCount}/${totalCount} paired)`}
             </button>
           </div>
         )}

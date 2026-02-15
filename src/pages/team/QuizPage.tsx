@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import confetti from 'canvas-confetti';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { celebrationBurst, smallBurst } from '../../utils/confetti';
 import { useAuth } from '../../contexts/useAuth';
 import { api } from '../../api/client';
 import type { QuizQuestion } from '../../api/client';
@@ -15,6 +15,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 const TIMER_SECONDS = 30;
+const AUTO_ADVANCE_SECONDS = 3;
 
 function ChallengeModal({
   question,
@@ -186,6 +187,7 @@ export function QuizPage() {
   const [showingFeedbackForQuestionId, setShowingFeedbackForQuestionId] = useState<number | null>(null);
   const [feedbackReason, setFeedbackReason] = useState<'timer' | null>(null);
   const [bonusPointsFromChallenges, setBonusPointsFromChallenges] = useState(0);
+  const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
 
   const currentQuestion = questions[currentIndex];
 
@@ -211,12 +213,12 @@ export function QuizPage() {
     setQuizMode(mode);
     setQuestionsLoading(true);
     api
-      .getQuizQuestions(bookListId, { mode })
+      .getQuizQuestions(team.book_list_id, { mode })
       .then((data) => {
         setQuestions(shuffle(data));
         setTotalCount(data.length * 2);
         const total = data.length * 2;
-        api.startQuizAttempt(bookListId, total).then((res) => setAttemptId(res.attempt_id)).catch(() => {});
+        api.startQuizAttempt(team.book_list_id, total).then((res) => setAttemptId(res.attempt_id)).catch(() => {});
       })
       .catch(() => setQuestions([]))
       .finally(() => setQuestionsLoading(false));
@@ -283,7 +285,27 @@ export function QuizPage() {
   useEffect(() => {
     setShowingFeedbackForQuestionId(null);
     setFeedbackReason(null);
+    setAutoAdvanceCountdown(null);
   }, [currentIndex]);
+
+  // Auto-advance countdown: when timer expires and feedback is shown, count down then advance
+  useEffect(() => {
+    if (feedbackReason !== 'timer' || showingFeedbackForQuestionId == null) {
+      setAutoAdvanceCountdown(null);
+      return;
+    }
+    setAutoAdvanceCountdown(AUTO_ADVANCE_SECONDS);
+    const interval = setInterval(() => {
+      setAutoAdvanceCountdown((prev) => {
+        if (prev == null || prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [feedbackReason, showingFeedbackForQuestionId]);
 
   const questionAnswers = currentQuestion ? answers[currentQuestion.id] : undefined;
   const selectedBookId = questionAnswers?.bookChoiceId ?? null;
@@ -323,20 +345,20 @@ export function QuizPage() {
     return !!(correctItem && selectedAuthorItem && selectedAuthorItem.author === correctItem.author);
   }
 
-  const handleSelectBook = (choiceId: number) => {
+  const handleSelectBook = useCallback((choiceId: number) => {
     if (phase !== 'playing' || !currentQuestion) return;
     const prev = answers[currentQuestion.id] ?? { bookChoiceId: null, authorChoiceId: null };
     setAnswers((a) => ({ ...a, [currentQuestion.id]: { ...prev, bookChoiceId: choiceId } }));
     setBooksOpen(false);
     setAuthorsOpen(true); // open authors so user can select without an extra click
-  };
+  }, [phase, currentQuestion, answers]);
 
-  const handleSelectAuthor = (choiceId: number) => {
+  const handleSelectAuthor = useCallback((choiceId: number) => {
     if (phase !== 'playing' || !currentQuestion) return;
     const prev = answers[currentQuestion.id] ?? { bookChoiceId: null, authorChoiceId: null };
     setAnswers((a) => ({ ...a, [currentQuestion.id]: { ...prev, authorChoiceId: choiceId } }));
     setAuthorsOpen(false);
-  };
+  }, [phase, currentQuestion, answers]);
 
   // Reset accordions when changing question
   useEffect(() => {
@@ -375,7 +397,9 @@ export function QuizPage() {
       setHighScore(res.high_score);
       setAttemptId(res.attempt_id ?? null);
       if (correct === total) {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        celebrationBurst();
+      } else if (total > 0 && correct / total >= 0.8) {
+        smallBurst();
       }
       setPhase('submitted');
     } catch {
@@ -385,6 +409,136 @@ export function QuizPage() {
       setSubmitting(false);
     }
   };
+
+  // When auto-advance countdown hits 0, advance to next question or finish
+  const autoAdvanceFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoAdvanceCountdown !== 0 || feedbackReason !== 'timer' || autoAdvanceFiredRef.current) return;
+    autoAdvanceFiredRef.current = true;
+    setShowingFeedbackForQuestionId(null);
+    setFeedbackReason(null);
+    setAutoAdvanceCountdown(null);
+    if (isLastQuestion) {
+      handleFinish();
+    } else {
+      setCurrentIndex((i) => i + 1);
+    }
+  }, [autoAdvanceCountdown, feedbackReason, isLastQuestion]);
+  // Reset auto-advance fired flag on question change
+  useEffect(() => {
+    autoAdvanceFiredRef.current = false;
+  }, [currentIndex]);
+
+  // --- Keyboard navigation ---
+  const navigate = useNavigate();
+  const [focusedChoiceIndex, setFocusedChoiceIndex] = useState(-1);
+
+  // Reset focused choice when accordion state changes
+  useEffect(() => {
+    setFocusedChoiceIndex(-1);
+  }, [booksOpen, authorsOpen, currentIndex]);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Don't interfere with modals, inputs, or textareas
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (challengeModalQuestion) return;
+
+      // Only handle keys during playing phase with questions loaded
+      if (phase !== 'playing' || questions.length === 0 || !currentQuestion) return;
+
+      const choiceCount = currentQuestion.choices?.length ?? 0;
+      const anyAccordionOpen = booksOpen || authorsOpen;
+
+      switch (e.key) {
+        case 'Enter': {
+          if (anyAccordionOpen && focusedChoiceIndex >= 0 && focusedChoiceIndex < choiceCount) {
+            // Select the focused choice
+            e.preventDefault();
+            const choice = currentQuestion.choices[focusedChoiceIndex];
+            if (booksOpen) {
+              handleSelectBook(choice.id);
+            } else if (authorsOpen) {
+              handleSelectAuthor(choice.id);
+            }
+          } else {
+            // Advance: click Next/Finish
+            e.preventDefault();
+            const inFeedback = showingFeedbackForQuestionId === currentQuestion.id;
+            const canAdvance = inFeedback
+              ? !submitting
+              : isLastQuestion
+                ? allAnswered && !submitting
+                : selectedBookId != null && selectedAuthorId != null && !submitting;
+            if (canAdvance) handleNextOrFinish();
+          }
+          break;
+        }
+
+        case 'Escape': {
+          e.preventDefault();
+          if (anyAccordionOpen) {
+            setBooksOpen(false);
+            setAuthorsOpen(false);
+          } else if (showingFeedbackForQuestionId != null) {
+            // Do nothing during feedback (let it auto-advance or user presses Enter)
+          } else if (currentIndex > 0) {
+            setCurrentIndex((i) => i - 1);
+          } else {
+            navigate('/team/dashboard');
+          }
+          break;
+        }
+
+        case 'b':
+        case 'B': {
+          if (showingFeedbackForQuestionId === currentQuestion.id) break;
+          e.preventDefault();
+          setAuthorsOpen(false);
+          setBooksOpen((prev) => !prev);
+          break;
+        }
+
+        case 'a':
+        case 'A': {
+          if (showingFeedbackForQuestionId === currentQuestion.id) break;
+          e.preventDefault();
+          setBooksOpen(false);
+          setAuthorsOpen((prev) => !prev);
+          break;
+        }
+
+        case 'ArrowDown': {
+          if (!anyAccordionOpen || choiceCount === 0) break;
+          e.preventDefault();
+          setFocusedChoiceIndex((prev) => (prev + 1) % choiceCount);
+          break;
+        }
+
+        case 'ArrowUp': {
+          if (!anyAccordionOpen || choiceCount === 0) break;
+          e.preventDefault();
+          setFocusedChoiceIndex((prev) => (prev <= 0 ? choiceCount - 1 : prev - 1));
+          break;
+        }
+
+        default:
+          break;
+      }
+    },
+    [
+      phase, questions, currentQuestion, currentIndex, booksOpen, authorsOpen,
+      focusedChoiceIndex, selectedBookId, selectedAuthorId, isLastQuestion,
+      allAnswered, submitting, showingFeedbackForQuestionId, challengeModalQuestion,
+      handleNextOrFinish, handleSelectBook, handleSelectAuthor, navigate,
+    ]
+  );
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   if (!user || !team) {
     return null;
@@ -462,11 +616,13 @@ export function QuizPage() {
             </Link>
           </div>
         </nav>
-        <div className="mx-auto max-w-7xl px-4 py-12 text-center">
-          <p className="text-stone-600">Your team has not chosen a book list yet. Only the team lead can choose a list.</p>
+        <div className="mx-auto max-w-md px-4 py-12 text-center">
+          <p className="text-3xl mb-3" aria-hidden>📝</p>
+          <h2 className="text-lg font-semibold text-stone-900">No book list selected</h2>
+          <p className="mt-2 text-stone-600">Your team lead needs to choose a book list before quizzes are available. Check back soon!</p>
           <Link
             to="/team/dashboard"
-            className="mt-4 inline-block font-medium text-primary-600 hover:text-primary-700 transition duration-200"
+            className="mt-5 inline-block rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
           >
             Back to dashboard
           </Link>
@@ -489,11 +645,13 @@ export function QuizPage() {
             </Link>
           </div>
         </nav>
-        <div className="mx-auto max-w-7xl px-4 py-12 text-center">
-          <p className="text-stone-600">No quiz questions available for your book list.</p>
+        <div className="mx-auto max-w-md px-4 py-12 text-center">
+          <p className="text-3xl mb-3" aria-hidden>📝</p>
+          <h2 className="text-lg font-semibold text-stone-900">No questions yet</h2>
+          <p className="mt-2 text-stone-600">There aren&apos;t any quiz questions for your book list yet. Your admin will add them soon -- try Flashcards or the Matching Game in the meantime!</p>
           <Link
             to="/team/dashboard"
-            className="mt-4 inline-block font-medium text-primary-600 hover:text-primary-700 transition duration-200"
+            className="mt-5 inline-block rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
           >
             Back to dashboard
           </Link>
@@ -723,14 +881,16 @@ export function QuizPage() {
                   })()
                 : 'Select the book (1 point)'}
             </span>
-            <span className="text-stone-400" aria-hidden>
+            <span className="flex items-center gap-2 text-stone-400" aria-hidden>
+              <kbd className="hidden sm:inline rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-xs font-mono text-stone-400">B</kbd>
               {booksOpen ? '▼' : '▶'}
             </span>
           </button>
           {booksOpen && (
             <ul className="border-t border-stone-200 px-2 pb-2 pt-2 space-y-2" role="list">
-              {currentQuestion?.choices.map((choice) => {
+              {currentQuestion?.choices.map((choice, idx) => {
                 const isSelected = selectedBookId === choice.id;
+                const isFocused = booksOpen && focusedChoiceIndex === idx;
                 return (
                   <li key={`book-${choice.id}`}>
                     <button
@@ -739,7 +899,9 @@ export function QuizPage() {
                       className={`w-full rounded-lg border px-4 py-3 text-left text-sm transition duration-200 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
                         isSelected
                           ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200'
-                          : 'border-stone-200 bg-white text-stone-900 hover:border-stone-300 hover:bg-stone-50'
+                          : isFocused
+                            ? 'border-primary-400 bg-primary-50/50 ring-1 ring-primary-200'
+                            : 'border-stone-200 bg-white text-stone-900 hover:border-stone-300 hover:bg-stone-50'
                       }`}
                       aria-pressed={isSelected}
                       aria-label={`Book: ${choice.title}`}
@@ -775,14 +937,16 @@ export function QuizPage() {
                   })()
                 : 'Select the author (1 point)'}
             </span>
-            <span className="text-stone-400" aria-hidden>
+            <span className="flex items-center gap-2 text-stone-400" aria-hidden>
+              <kbd className="hidden sm:inline rounded border border-stone-200 bg-stone-50 px-1.5 py-0.5 text-xs font-mono text-stone-400">A</kbd>
               {authorsOpen ? '▼' : '▶'}
             </span>
           </button>
           {authorsOpen && (
             <ul className="border-t border-stone-200 px-2 pb-2 pt-2 space-y-2" role="list">
-              {currentQuestion?.choices.map((choice) => {
+              {currentQuestion?.choices.map((choice, idx) => {
                 const isSelected = selectedAuthorId === choice.id;
+                const isFocused = authorsOpen && focusedChoiceIndex === idx;
                 const authorLabel = choice.author != null && choice.author !== '' ? choice.author : 'Unknown';
                 return (
                   <li key={`author-${choice.id}`}>
@@ -792,7 +956,9 @@ export function QuizPage() {
                       className={`w-full rounded-lg border px-4 py-3 text-left text-sm transition focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
                         isSelected
                           ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200'
-                          : 'border-stone-200 bg-white text-stone-900 hover:border-stone-300 hover:bg-stone-50'
+                          : isFocused
+                            ? 'border-primary-400 bg-primary-50/50 ring-1 ring-primary-200'
+                            : 'border-stone-200 bg-white text-stone-900 hover:border-stone-300 hover:bg-stone-50'
                       }`}
                       aria-pressed={isSelected}
                       aria-label={`Author: ${authorLabel}`}
@@ -816,7 +982,7 @@ export function QuizPage() {
               setChallengeModalQuestion(null);
               setChallengeResult(null);
             }}
-            onSubmitted={(upheld, _newCorrectCount, newHighScore) => {
+            onSubmitted={(upheld, newCorrectCount, newHighScore) => {
               setChallengedQuestionIds((prev) => [...prev, challengeModalQuestion.id]);
               setChallengeResult(upheld ? 'upheld' : 'denied');
               if (upheld) {
@@ -838,7 +1004,7 @@ export function QuizPage() {
                 onClick={() => setCurrentIndex((i) => i - 1)}
                 className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
               >
-                Previous
+                Previous <span className="hidden sm:inline text-stone-400 ml-1 text-xs">(Esc)</span>
               </button>
             )}
           </div>
@@ -856,13 +1022,28 @@ export function QuizPage() {
               ? 'Saving…'
               : showingFeedbackForQuestionId === currentQuestion?.id
                 ? isLastQuestion
-                  ? 'Finish'
-                  : 'Next question'
+                  ? autoAdvanceCountdown != null && autoAdvanceCountdown > 0
+                    ? `Finish (${autoAdvanceCountdown}s)`
+                    : 'Finish'
+                  : autoAdvanceCountdown != null && autoAdvanceCountdown > 0
+                    ? `Next question (${autoAdvanceCountdown}s)`
+                    : 'Next question'
                 : isLastQuestion
                   ? 'Finish'
                   : 'Next'}
           </button>
         </div>
+        <p className="mt-4 text-center text-xs text-stone-400 hidden sm:block">
+          <kbd className="rounded border border-stone-200 bg-stone-50 px-1 py-0.5 font-mono">B</kbd> books
+          {' · '}
+          <kbd className="rounded border border-stone-200 bg-stone-50 px-1 py-0.5 font-mono">A</kbd> authors
+          {' · '}
+          <kbd className="rounded border border-stone-200 bg-stone-50 px-1 py-0.5 font-mono">↑↓</kbd> navigate
+          {' · '}
+          <kbd className="rounded border border-stone-200 bg-stone-50 px-1 py-0.5 font-mono">Enter</kbd> select / next
+          {' · '}
+          <kbd className="rounded border border-stone-200 bg-stone-50 px-1 py-0.5 font-mono">Esc</kbd> back
+        </p>
       </div>
     </div>
   );

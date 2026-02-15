@@ -10,6 +10,7 @@ export interface User {
   role: 'teammate' | 'team_lead';
   team_id: number;
   pin_reset_required?: boolean;
+  avatar_emoji?: string | null;
 }
 
 export interface Team {
@@ -21,6 +22,7 @@ export interface Team {
   invite_code_id?: number;
   book_list_id?: number | null;
   book_list?: { id: number; name: string } | null;
+  leaderboard_enabled?: boolean;
   team_lead?: User | null;
   teammates?: User[];
   books?: Book[];
@@ -40,6 +42,7 @@ export interface BookAssignment {
   book_id: number;
   status: 'assigned' | 'in_progress' | 'completed';
   progress_notes?: string | null;
+  progress_percent?: number | null;
   book?: Book;
   user?: { id: number; username: string };
 }
@@ -205,6 +208,8 @@ export interface QuizTeamStatsResponse {
 export interface ChallengeableTeammate {
   id: number;
   username: string;
+  avatar_emoji?: string | null;
+  online: boolean;
 }
 
 export type QuizMatchStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -248,10 +253,13 @@ export interface QuizMatchState {
   phase: QuizMatchPhase;
   challenger_id: number;
   challenger_username: string;
+  challenger_avatar?: string | null;
   invited_opponent_id: number;
   invited_opponent_username: string;
+  invited_opponent_avatar?: string | null;
   opponent_id: number | null;
   opponent_username: string | null;
+  opponent_avatar?: string | null;
   challenger_score: number;
   opponent_score: number;
   current_question_index: number;
@@ -260,6 +268,143 @@ export interface QuizMatchState {
   phase_entered_at?: string | null;
   question_results?: QuizMatchQuestionResult[];
   last_answer?: { correct: boolean; respondent_id: number; points: number };
+}
+
+// Badges
+export interface Badge {
+  key: string;
+  name: string;
+  description: string;
+  emoji: string;
+  earned: boolean;
+  progress: string | null;
+}
+
+export interface BadgesResponse {
+  badges: Badge[];
+}
+
+// Streak
+export interface StreakResponse {
+  streak: number;
+  active_today: boolean;
+}
+
+// Weekly Summary
+export interface WeeklySummaryResponse {
+  week_start: string;
+  quizzes_completed: number;
+  quiz_avg_score: number;
+  matches_played: number;
+  matches_won: number;
+  books_finished: number;
+  days_active: number;
+}
+
+// Personal Progress
+export interface ProgressQuizAttempt {
+  correct_count: number;
+  total_count: number;
+  created_at: string;
+}
+
+export interface ProgressAssignment {
+  book_title: string;
+  book_author: string | null;
+  status: 'assigned' | 'in_progress' | 'completed';
+  progress_percent: number;
+}
+
+export interface MyProgressResponse {
+  quiz: {
+    total_attempts: number;
+    high_score: number;
+    max_possible: number;
+    avg_percent: number;
+    recent: ProgressQuizAttempt[];
+  };
+  matches: {
+    total: number;
+    wins: number;
+    losses: number;
+    ties: number;
+  };
+  reading: {
+    books_completed: number;
+    books_total: number;
+    assignments: ProgressAssignment[];
+  };
+  activity: {
+    total_active_days: number;
+    current_streak: number;
+    recent_dates: string[];
+  };
+}
+
+// Team Reading Progress
+export interface TeamReadingTeammate {
+  user_id: number;
+  username: string;
+  avatar_emoji?: string | null;
+  books_assigned: number;
+  books_completed: number;
+  avg_progress: number;
+}
+
+export interface TeamReadingProgressResponse {
+  total_assignments: number;
+  completed_count: number;
+  in_progress_count: number;
+  avg_progress: number;
+  teammates: TeamReadingTeammate[];
+  recently_completed: { username: string; book_title: string; completed_at: string }[];
+}
+
+// Daily spotlight question
+export interface DailyQuestionChoice {
+  id: number;
+  title: string;
+  author: string;
+}
+
+export interface DailyQuestionResponse {
+  available: boolean;
+  question_id?: number;
+  question_text?: string;
+  choices?: DailyQuestionChoice[];
+  already_answered?: boolean;
+  my_choice_id?: number;
+  correct?: boolean;
+  correct_answer_id?: number;
+  team_answered?: number;
+  team_correct?: number;
+}
+
+export interface DailyQuestionAnswerResponse {
+  correct: boolean;
+  correct_answer_id: number;
+  team_answered: number;
+  team_correct: number;
+}
+
+// Leaderboard
+export interface LeaderboardEntry {
+  user_id: number;
+  username: string;
+  avatar_emoji?: string | null;
+  role: 'teammate' | 'team_lead';
+  quiz_high_score: number;
+  quiz_avg_score: number;
+  quiz_attempt_count: number;
+  match_wins: number;
+  match_losses: number;
+  books_completed: number;
+  books_assigned: number;
+  avg_reading_progress: number;
+}
+
+export interface LeaderboardResponse {
+  entries: LeaderboardEntry[];
 }
 
 class ApiClient {
@@ -343,8 +488,8 @@ class ApiClient {
     return res.data;
   }
 
-  async resetTeammatePin(id: number): Promise<{ user: User; pin: string; message?: string }> {
-    const res = await this.client.post(`/teammates/${id}/reset_pin`);
+  async resetTeammatePin(id: number, newPin?: string): Promise<{ user: User; pin: string; message?: string }> {
+    const res = await this.client.post(`/teammates/${id}/reset_pin`, newPin != null && newPin.length === 4 ? { new_pin: newPin } : {});
     return res.data;
   }
 
@@ -383,8 +528,8 @@ class ApiClient {
     return res.data;
   }
 
-  async updateAssignment(id: number, status: string, progressNotes?: string) {
-    const res = await this.client.patch(`/book_assignments/${id}`, { status, progress_notes: progressNotes });
+  async updateAssignment(id: number, status: string, progressNotes?: string, progressPercent?: number) {
+    const res = await this.client.patch(`/book_assignments/${id}`, { status, progress_notes: progressNotes, progress_percent: progressPercent });
     return res.data;
   }
 
@@ -471,6 +616,15 @@ class ApiClient {
 
   async adminDeleteTeamUser(teamId: number, userId: number): Promise<void> {
     await this.client.delete(`/admin/teams/${teamId}/users/${userId}`);
+  }
+
+  async adminResetTeamUserCredential(
+    teamId: number,
+    userId: number,
+    data: { new_password?: string; new_pin?: string }
+  ): Promise<{ user: User; pin?: string }> {
+    const res = await this.client.post(`/admin/teams/${teamId}/users/${userId}/reset_credential`, data);
+    return res.data;
   }
 
   async adminDeleteTeam(id: number): Promise<void> {
@@ -564,6 +718,11 @@ class ApiClient {
     return res.data;
   }
 
+  async updateMyTeamSettings(settings: { leaderboard_enabled?: boolean }): Promise<Team> {
+    const res = await this.client.patch<Team>('/my_team', settings);
+    return res.data;
+  }
+
   // Quiz
   async getQuizQuestions(
     bookListId: number,
@@ -634,6 +793,65 @@ class ApiClient {
       page_number: pageNumber,
       justification,
     });
+    return res.data;
+  }
+
+  // Avatar
+  async updateMyAvatar(avatarEmoji: string | null): Promise<User> {
+    const res = await this.client.patch<User>('/my_avatar', { avatar_emoji: avatarEmoji });
+    return res.data;
+  }
+
+  // Badges
+  async getMyBadges(): Promise<BadgesResponse> {
+    const res = await this.client.get<BadgesResponse>('/my_badges');
+    return res.data;
+  }
+
+  // Streak
+  async getMyStreak(): Promise<StreakResponse> {
+    const res = await this.client.get<StreakResponse>('/my_streak');
+    return res.data;
+  }
+
+  // Weekly Summary
+  async getMyWeeklySummary(): Promise<WeeklySummaryResponse> {
+    const res = await this.client.get<WeeklySummaryResponse>('/my_weekly_summary');
+    return res.data;
+  }
+
+  // Personal Progress
+  async getMyProgress(): Promise<MyProgressResponse> {
+    const res = await this.client.get<MyProgressResponse>('/my_progress');
+    return res.data;
+  }
+
+  // Team Reading Progress
+  async getTeamReadingProgress(): Promise<TeamReadingProgressResponse> {
+    const res = await this.client.get<TeamReadingProgressResponse>('/team_reading_progress');
+    return res.data;
+  }
+
+  // Daily question
+  async getDailyQuestion(): Promise<DailyQuestionResponse> {
+    const res = await this.client.get<DailyQuestionResponse>('/daily_question');
+    return res.data;
+  }
+
+  async answerDailyQuestion(bookListItemId: number): Promise<DailyQuestionAnswerResponse> {
+    const res = await this.client.post<DailyQuestionAnswerResponse>('/daily_question/answer', { book_list_item_id: bookListItemId });
+    return res.data;
+  }
+
+  // Match history
+  async getMatchHistory(): Promise<(QuizMatchState & { created_at: string })[]> {
+    const res = await this.client.get<(QuizMatchState & { created_at: string })[]>('/quiz_matches/history');
+    return res.data;
+  }
+
+  // Leaderboard
+  async getLeaderboard(): Promise<LeaderboardResponse> {
+    const res = await this.client.get<LeaderboardResponse>('/leaderboard');
     return res.data;
   }
 

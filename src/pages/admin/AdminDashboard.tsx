@@ -53,6 +53,12 @@ export function AdminDashboard() {
   const [editQuestionText, setEditQuestionText] = useState('');
   const [editQuestionCorrectBookId, setEditQuestionCorrectBookId] = useState<number | ''>('');
   const [showQuizQuestionsModal, setShowQuizQuestionsModal] = useState(false);
+  const [resettingCredentialUserId, setResettingCredentialUserId] = useState<number | null>(null);
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetNewPin, setResetNewPin] = useState('');
+  const [credentialSuccessMessage, setCredentialSuccessMessage] = useState<string | null>(null);
+  const [credentialLoading, setCredentialLoading] = useState(false);
+  const [credentialError, setCredentialError] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
@@ -429,6 +435,57 @@ export function AdminDashboard() {
       await loadData();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const clearCredentialResetState = () => {
+    setResettingCredentialUserId(null);
+    setResetNewPassword('');
+    setResetNewPin('');
+    setCredentialSuccessMessage(null);
+    setCredentialError('');
+  };
+
+  const handleResetCredential = async (e: React.FormEvent, userId: number, isTeamLead: boolean) => {
+    e.preventDefault();
+    if (!editingTeam) return;
+    setCredentialError('');
+    setCredentialLoading(true);
+    try {
+      if (isTeamLead) {
+        if (!resetNewPassword.trim() || resetNewPassword.length < 6) {
+          setCredentialError('Password must be at least 6 characters');
+          setCredentialLoading(false);
+          return;
+        }
+        await api.adminResetTeamUserCredential(editingTeam.id, userId, { new_password: resetNewPassword });
+        setCredentialSuccessMessage('Password updated successfully.');
+      } else {
+        const body = resetNewPin.replace(/\D/g, '').length === 4
+          ? { new_pin: resetNewPin.replace(/\D/g, '') }
+          : {};
+        const res = await api.adminResetTeamUserCredential(editingTeam.id, userId, body);
+        if (res.pin) {
+          setCredentialSuccessMessage(`New PIN: ${res.pin} — copy it; it won't be shown again.`);
+        } else {
+          setCredentialSuccessMessage('PIN updated successfully.');
+        }
+      }
+      setResettingCredentialUserId(null);
+      setResetNewPassword('');
+      setResetNewPin('');
+      setCredentialError('');
+      const updated = await api.adminGetTeam(editingTeam.id);
+      setEditingTeam(updated);
+      await loadTeams();
+      await loadData();
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err && typeof (err as { response?: { data?: { errors?: string[] } } }).response?.data?.errors === 'object'
+        ? ((err as { response: { data: { errors: string[] } } }).response.data.errors?.join(', ') || 'Failed to reset credential')
+        : 'Failed to reset credential';
+      setCredentialError(msg);
+    } finally {
+      setCredentialLoading(false);
     }
   };
 
@@ -895,7 +952,7 @@ export function AdminDashboard() {
               <div className="flex gap-2 justify-end">
                 <button
                   type="button"
-                  onClick={() => { setEditingTeam(null); setEditTeamName(''); setEditTeamInviteCodeId(''); setShowAddTeammate(false); setShowAddTeamLead(false); setEditingMemberId(null); }}
+                  onClick={() => { setEditingTeam(null); setEditTeamName(''); setEditTeamInviteCodeId(''); setShowAddTeammate(false); setShowAddTeamLead(false); setEditingMemberId(null); clearCredentialResetState(); }}
                   className="px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 focus:ring-2 focus:ring-offset-2 focus:ring-primary outline-none transition"
                 >
                   Cancel
@@ -908,6 +965,13 @@ export function AdminDashboard() {
                 </button>
               </div>
             </form>
+
+            {(credentialSuccessMessage || credentialError) && (
+              <div className={`mt-4 p-3 rounded-lg text-sm ${credentialError ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'}`} role="alert">
+                {credentialSuccessMessage ?? credentialError}
+                <button type="button" onClick={() => { setCredentialSuccessMessage(null); setCredentialError(''); }} className="ml-2 underline focus:ring-2 focus:ring-primary outline-none rounded">Dismiss</button>
+              </div>
+            )}
 
             <div className="mt-6 pt-4 border-t border-stone-200">
               <h3 className="text-sm font-semibold text-stone-800 mb-2">Team lead</h3>
@@ -937,7 +1001,34 @@ export function AdminDashboard() {
                 >
                   {showAddTeamLead ? 'Cancel' : '+ Add new team lead'}
                 </button>
+                {editingTeam.team_lead && resettingCredentialUserId !== editingTeam.team_lead.id && (
+                  <button
+                    type="button"
+                    onClick={() => { setResettingCredentialUserId(editingTeam.team_lead!.id); setCredentialSuccessMessage(null); setCredentialError(''); }}
+                    className="px-2 py-1.5 text-sm font-medium text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-50"
+                  >
+                    Reset password
+                  </button>
+                )}
               </div>
+              {editingTeam.team_lead && resettingCredentialUserId === editingTeam.team_lead.id && (
+                <form onSubmit={(e) => handleResetCredential(e, editingTeam.team_lead!.id, true)} className="mt-2 p-3 rounded-lg bg-stone-50 border border-stone-200 space-y-2">
+                  <label className="block text-xs font-medium text-stone-700">New password (min 6 characters)</label>
+                  <input
+                    type="password"
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    placeholder="New password"
+                    minLength={6}
+                    className="w-full px-2 py-1.5 border border-stone-300 rounded text-sm"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={credentialLoading} className="px-2 py-1.5 text-sm font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50">Save password</button>
+                    <button type="button" onClick={clearCredentialResetState} className="px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">Cancel</button>
+                  </div>
+                </form>
+              )}
               {showAddTeamLead && (
                 <form onSubmit={handleAddTeamLead} className="mt-2 p-3 rounded-lg bg-stone-50 border border-stone-200 space-y-2">
                   <input
@@ -977,7 +1068,7 @@ export function AdminDashboard() {
               <h3 className="text-sm font-semibold text-stone-800 mb-2">Team members (teammates)</h3>
               <ul className="space-y-2 mb-2">
                 {(editingTeam.teammates ?? []).map((u) => (
-                  <li key={u.id} className="flex justify-between items-center py-2 px-3 rounded border border-stone-100 bg-stone-50/50">
+                  <li key={u.id} className="flex flex-col gap-2 py-2 px-3 rounded border border-stone-100 bg-stone-50/50">
                     {editingMemberId === u.id ? (
                       <form
                         onSubmit={(e) => { e.preventDefault(); handleUpdateMemberUsername(u.id, editMemberUsername); }}
@@ -992,13 +1083,35 @@ export function AdminDashboard() {
                         <button type="submit" className="px-2 py-1.5 text-sm text-primary-600 hover:bg-primary-50 rounded">Save</button>
                         <button type="button" onClick={() => { setEditingMemberId(null); setEditMemberUsername(''); }} className="px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded">Cancel</button>
                       </form>
+                    ) : resettingCredentialUserId === u.id ? (
+                      <form onSubmit={(e) => handleResetCredential(e, u.id, false)} className="p-2 rounded bg-white border border-stone-200 space-y-2">
+                        <label className="block text-xs font-medium text-stone-700">New PIN (4 digits) or leave blank to generate random</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={resetNewPin}
+                          onChange={(e) => setResetNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          placeholder="0000"
+                          maxLength={4}
+                          className="w-24 px-2 py-1.5 border border-stone-300 rounded text-sm font-mono"
+                        />
+                        <div className="flex gap-2 flex-wrap">
+                          <button type="submit" disabled={credentialLoading} className="px-2 py-1.5 text-sm font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50">
+                            {resetNewPin.replace(/\D/g, '').length === 4 ? 'Set PIN' : 'Generate random PIN'}
+                          </button>
+                          <button type="button" onClick={clearCredentialResetState} className="px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">Cancel</button>
+                        </div>
+                      </form>
                     ) : (
                       <>
-                        <span className="text-sm font-medium text-stone-900">{u.username}</span>
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => handlePromoteToTeamLead(u.id)} className="px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 rounded">Make team lead</button>
-                          <button type="button" onClick={() => { setEditingMemberId(u.id); setEditMemberUsername(u.username); }} className="px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 rounded">Edit</button>
-                          <button type="button" onClick={() => handleRemoveMember(u.id)} className="px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded">Remove</button>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-stone-900">{u.username}</span>
+                          <div className="flex gap-1">
+                            <button type="button" onClick={() => handlePromoteToTeamLead(u.id)} className="px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 rounded">Make team lead</button>
+                            <button type="button" onClick={() => { setEditingMemberId(u.id); setEditMemberUsername(u.username); }} className="px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 rounded">Edit</button>
+                            <button type="button" onClick={() => { setResettingCredentialUserId(u.id); setCredentialSuccessMessage(null); setCredentialError(''); }} className="px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-50 rounded">Reset PIN</button>
+                            <button type="button" onClick={() => handleRemoveMember(u.id)} className="px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded">Remove</button>
+                          </div>
                         </div>
                       </>
                     )}

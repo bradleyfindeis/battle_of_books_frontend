@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/useAuth';
 import { api } from '../../api/client';
 import type { QuizMatchState } from '../../api/client';
 import { useQuizMatchChannel } from '../../hooks/useQuizMatchChannel';
+import { celebrationBurst } from '../../utils/confetti';
 
 const CLOCK_SECONDS = 30;
 
@@ -134,6 +135,19 @@ export function QuizMatchPage() {
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [inClockPhase, phaseEnteredAt, matchId, isMyTurn]);
+
+  // Fire confetti when match completes and user won
+  const confettiFiredRef = useRef(false);
+  useEffect(() => {
+    if (match?.status !== 'completed' || confettiFiredRef.current) return;
+    const won =
+      (isChallenger && match.challenger_score > match.opponent_score) ||
+      (isOpponent && match.opponent_score > match.challenger_score);
+    if (won) {
+      confettiFiredRef.current = true;
+      celebrationBurst();
+    }
+  }, [match?.status, match?.challenger_score, match?.opponent_score, isChallenger, isOpponent]);
 
   const handleJoin = async () => {
     if (matchId == null || joining) return;
@@ -430,6 +444,7 @@ export function QuizMatchPage() {
                 challengerTurn ? 'bg-primary-100 text-primary-800' : 'text-stone-700'
               }`}
             >
+              {match.challenger_avatar && <span className="mr-0.5" aria-hidden>{match.challenger_avatar}</span>}
               {match.challenger_username} {match.challenger_score}
             </span>
             <span className="text-stone-400">–</span>
@@ -438,6 +453,7 @@ export function QuizMatchPage() {
                 opponentTurn ? 'bg-primary-100 text-primary-800' : 'text-stone-700'
               }`}
             >
+              {(match.opponent_avatar ?? match.invited_opponent_avatar) && <span className="mr-0.5" aria-hidden>{match.opponent_avatar ?? match.invited_opponent_avatar}</span>}
               {match.opponent_username ?? match.invited_opponent_username} {match.opponent_score}
             </span>
           </div>

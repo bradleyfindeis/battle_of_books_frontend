@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Simple open book: spine in center, two pages -->
+  <path fill="#1c1917" d="M16 4c-5 0-10 2.8-10 6.5V26h4V11.2c0-2 2.2-3.6 6-3.6s6 1.6 6 3.6V26h4V10.5C26 6.8 21 4 16 4Z"/>
+  <path fill="#78716c" d="M16 7.6c-2.5 0-4.5 1.2-4.5 2.7V24h9V10.3c0-1.5-2-2.7-4.5-2.7Z"/>
+</svg>

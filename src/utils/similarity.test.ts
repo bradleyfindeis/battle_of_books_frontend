@@ -187,8 +187,8 @@ describe('classifyVoiceAnswer', () => {
   });
 
   describe('threshold boundaries', () => {
-    it('has AUTO_CORRECT_THRESHOLD at 0.85', () => {
-      expect(AUTO_CORRECT_THRESHOLD).toBe(0.85);
+    it('has AUTO_CORRECT_THRESHOLD at 0.95', () => {
+      expect(AUTO_CORRECT_THRESHOLD).toBe(0.95);
     });
 
     it('has NEAR_MISS_THRESHOLD at 0.35', () => {
@@ -215,8 +215,8 @@ describe('real-world voice-to-text scenarios', () => {
 
     // Voice garbled the name a bit — should spell check
     { spoken: 'Bolla', correct: 'Bulla', expected: 'spell_check' },
-    // "Renolds" vs "Reynolds" — LCS is very high (14/15 ≈ 0.93), auto-corrects
-    { spoken: 'Renolds', correct: 'Reynolds', expected: 'correct' },
+    // "Renolds" vs "Reynolds" — LCS is 14/15 ≈ 0.93, close but triggers spell check
+    { spoken: 'Renolds', correct: 'Reynolds', expected: 'spell_check' },
 
     // Completely wrong — should be wrong
     { spoken: 'Minecraft', correct: 'The Crossover', expected: 'wrong' },

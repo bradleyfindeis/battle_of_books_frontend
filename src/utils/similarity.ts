@@ -67,7 +67,7 @@ export function similarity(spoken: string, correct: string): number {
   return best;
 }
 
-export const AUTO_CORRECT_THRESHOLD = 0.85;
+export const AUTO_CORRECT_THRESHOLD = 0.95;
 export const NEAR_MISS_THRESHOLD = 0.35;
 
 /**

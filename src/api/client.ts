@@ -11,6 +11,7 @@ export interface User {
   team_id: number;
   pin_reset_required?: boolean;
   avatar_emoji?: string | null;
+  avatar_color?: string | null;
 }
 
 export interface Team {
@@ -209,6 +210,7 @@ export interface ChallengeableTeammate {
   id: number;
   username: string;
   avatar_emoji?: string | null;
+  avatar_color?: string | null;
   online: boolean;
 }
 
@@ -254,12 +256,15 @@ export interface QuizMatchState {
   challenger_id: number;
   challenger_username: string;
   challenger_avatar?: string | null;
+  challenger_avatar_color?: string | null;
   invited_opponent_id: number;
   invited_opponent_username: string;
   invited_opponent_avatar?: string | null;
+  invited_opponent_avatar_color?: string | null;
   opponent_id: number | null;
   opponent_username: string | null;
   opponent_avatar?: string | null;
+  opponent_avatar_color?: string | null;
   challenger_score: number;
   opponent_score: number;
   current_question_index: number;
@@ -346,6 +351,7 @@ export interface TeamReadingTeammate {
   user_id: number;
   username: string;
   avatar_emoji?: string | null;
+  avatar_color?: string | null;
   books_assigned: number;
   books_completed: number;
   avg_progress: number;
@@ -392,6 +398,7 @@ export interface LeaderboardEntry {
   user_id: number;
   username: string;
   avatar_emoji?: string | null;
+  avatar_color?: string | null;
   role: 'teammate' | 'team_lead';
   quiz_high_score: number;
   quiz_avg_score: number;
@@ -797,8 +804,10 @@ class ApiClient {
   }
 
   // Avatar
-  async updateMyAvatar(avatarEmoji: string | null): Promise<User> {
-    const res = await this.client.patch<User>('/my_avatar', { avatar_emoji: avatarEmoji });
+  async updateMyAvatar(avatarEmoji: string | null, avatarColor?: string | null): Promise<User> {
+    const body: Record<string, string | null> = { avatar_emoji: avatarEmoji };
+    if (avatarColor !== undefined) body.avatar_color = avatarColor;
+    const res = await this.client.patch<User>('/my_avatar', body);
     return res.data;
   }
 

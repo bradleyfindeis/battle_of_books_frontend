@@ -10,9 +10,39 @@
 
 @layer components {
   .card {
-    @apply bg-white rounded-2xl shadow-card border border-stone-100 transition-shadow duration-200;
+    @apply bg-white rounded-2xl shadow-card border border-stone-100 transition-all duration-200;
   }
   .card-hover:hover {
     @apply shadow-card-hover;
+  }
+}
+
+@layer utilities {
+  /* Staggered animation delay utilities */
+  .stagger-1 { animation-delay: 50ms; animation-fill-mode: both; }
+  .stagger-2 { animation-delay: 100ms; animation-fill-mode: both; }
+  .stagger-3 { animation-delay: 150ms; animation-fill-mode: both; }
+  .stagger-4 { animation-delay: 200ms; animation-fill-mode: both; }
+  .stagger-5 { animation-delay: 250ms; animation-fill-mode: both; }
+  .stagger-6 { animation-delay: 300ms; animation-fill-mode: both; }
+  .stagger-7 { animation-delay: 350ms; animation-fill-mode: both; }
+  .stagger-8 { animation-delay: 400ms; animation-fill-mode: both; }
+
+  /* Collapsible grid for smooth height transitions */
+  .collapse-grid {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s ease-out;
+  }
+  .collapse-grid.expanded {
+    grid-template-rows: 1fr;
+  }
+  .collapse-grid > * {
+    overflow: hidden;
+  }
+
+  /* Modal backdrop fade */
+  .backdrop-animate {
+    animation: fade-in 0.2s ease-out;
   }
 }

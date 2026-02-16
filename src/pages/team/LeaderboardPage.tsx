@@ -100,7 +100,7 @@ export function LeaderboardPage() {
         </div>
       </nav>
 
-      <div className="mx-auto max-w-3xl px-4 py-8">
+      <div className="mx-auto max-w-3xl px-4 py-8 animate-fade-in-up">
         {/* Category tabs */}
         <div className="flex gap-2 mb-6">
           {CATEGORIES.map((cat) => (
@@ -167,9 +167,10 @@ export function LeaderboardPage() {
                   return (
                     <tr
                       key={entry.user_id}
-                      className={`border-b border-stone-100 last:border-b-0 transition ${
+                      className={`border-b border-stone-100 last:border-b-0 transition duration-200 ${
                         isMe ? 'bg-primary-50/60' : 'hover:bg-stone-50'
                       }`}
+                      style={{ animation: `fade-in-up 0.3s ease-out ${i * 40}ms both` }}
                     >
                       <td className="px-4 py-3 text-sm font-medium text-stone-500">
                         {medal ? (
@@ -181,7 +182,13 @@ export function LeaderboardPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {entry.avatar_emoji && (
-                            <span className="text-base" aria-hidden>{entry.avatar_emoji}</span>
+                            <span
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-full text-base shrink-0"
+                              style={entry.avatar_color ? { backgroundColor: entry.avatar_color } : undefined}
+                              aria-hidden
+                            >
+                              {entry.avatar_emoji}
+                            </span>
                           )}
                           <span className={`text-sm font-medium ${isMe ? 'text-primary-700' : 'text-stone-900'}`}>
                             {entry.username}

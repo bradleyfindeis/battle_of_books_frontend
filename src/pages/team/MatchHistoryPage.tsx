@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/useAuth';
 import { api } from '../../api/client';
 import type { QuizMatchState, QuizMatchQuestionResult } from '../../api/client';
@@ -60,7 +61,7 @@ export function MatchHistoryPage() {
         </div>
       </nav>
 
-      <div className="mx-auto max-w-3xl px-4 py-8">
+      <div className="mx-auto max-w-3xl px-4 py-8 animate-fade-in-up">
         {matches.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-3xl mb-3" aria-hidden>⚔️</p>
@@ -75,7 +76,7 @@ export function MatchHistoryPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {matches.map((match) => {
+            {matches.map((match, matchIdx) => {
               const isExpanded = expandedId === match.id;
               const isChallenger = match.challenger_id === user?.id;
               const myScore = isChallenger ? match.challenger_score : match.opponent_score;
@@ -86,6 +87,9 @@ export function MatchHistoryPage() {
               const opponentAvatar = isChallenger
                 ? (match.opponent_avatar ?? match.invited_opponent_avatar)
                 : match.challenger_avatar;
+              const opponentAvatarColor = isChallenger
+                ? (match.opponent_avatar_color ?? match.invited_opponent_avatar_color)
+                : match.challenger_avatar_color;
               const won = myScore > theirScore;
               const tied = myScore === theirScore;
               const resultLabel = won ? 'Won' : tied ? 'Tied' : 'Lost';
@@ -96,7 +100,7 @@ export function MatchHistoryPage() {
                   : 'text-red-700 bg-red-50 border-red-200';
 
               return (
-                <div key={match.id} className="rounded-2xl bg-white border border-stone-100 shadow-card overflow-hidden">
+                <div key={match.id} className="rounded-2xl bg-white border border-stone-100 shadow-card overflow-hidden" style={{ animation: `fade-in-up 0.3s ease-out ${matchIdx * 50}ms both` }}>
                   <button
                     type="button"
                     onClick={() => setExpandedId(isExpanded ? null : match.id)}
@@ -108,7 +112,15 @@ export function MatchHistoryPage() {
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-stone-900">
-                        vs {opponentAvatar && <span className="mr-0.5" aria-hidden>{opponentAvatar}</span>}{opponentName}
+                        vs {opponentAvatar && (
+                          <span
+                            className="mr-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full text-xs align-text-bottom"
+                            style={opponentAvatarColor ? { backgroundColor: opponentAvatarColor } : undefined}
+                            aria-hidden
+                          >
+                            {opponentAvatar}
+                          </span>
+                        )}{opponentName}
                       </p>
                       <p className="text-xs text-stone-500">
                         {formatDate(match.created_at)} at {formatTime(match.created_at)}
@@ -117,60 +129,63 @@ export function MatchHistoryPage() {
                     <div className="text-right shrink-0">
                       <p className="text-sm font-bold text-stone-900">{myScore} – {theirScore}</p>
                     </div>
-                    <span className={`shrink-0 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden>
-                      &#9662;
-                    </span>
+                    <ChevronDown
+                      className={`h-5 w-5 shrink-0 text-stone-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                      aria-hidden
+                    />
                   </button>
 
-                  {isExpanded && match.question_results && match.question_results.length > 0 && (
-                    <div className="border-t border-stone-100 px-4 py-3">
-                      <h3 className="text-xs font-medium uppercase tracking-wide text-stone-500 mb-2">
-                        Question-by-question breakdown
-                      </h3>
-                      <ul className="space-y-2">
-                        {match.question_results.map((qr: QuizMatchQuestionResult, i: number) => {
-                          const iWasFirst = isChallenger
-                            ? qr.first_responder_id === match.challenger_id
-                            : qr.first_responder_id === match.opponent_id;
-                          const myCorrect = iWasFirst ? qr.first_responder_correct : qr.second_responder_correct;
-                          const theirCorrect = iWasFirst ? qr.second_responder_correct : qr.first_responder_correct;
+                  <div className={`collapse-grid ${isExpanded ? 'expanded' : ''}`}>
+                    <div>
+                      {match.question_results && match.question_results.length > 0 ? (
+                        <div className="border-t border-stone-100 px-4 py-3">
+                          <h3 className="text-xs font-medium uppercase tracking-wide text-stone-500 mb-2">
+                            Question-by-question breakdown
+                          </h3>
+                          <ul className="space-y-2">
+                            {match.question_results.map((qr: QuizMatchQuestionResult, i: number) => {
+                              const iWasFirst = isChallenger
+                                ? qr.first_responder_id === match.challenger_id
+                                : qr.first_responder_id === match.opponent_id;
+                              const myCorrect = iWasFirst ? qr.first_responder_correct : qr.second_responder_correct;
+                              const theirCorrect = iWasFirst ? qr.second_responder_correct : qr.first_responder_correct;
 
-                          return (
-                            <li key={i} className="rounded-lg border border-stone-100 p-3 text-sm">
-                              <div className="flex items-start gap-2">
-                                <span className="shrink-0 mt-0.5 text-stone-400 font-mono text-xs w-5 text-right">
-                                  {i + 1}.
-                                </span>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-stone-900">{qr.question_text}</p>
-                                  <p className="text-xs text-stone-500 mt-1">
-                                    Answer: <span className="font-medium">{qr.correct_book_title}</span>
-                                    {qr.correct_book_author && (
-                                      <> by <span className="font-medium">{qr.correct_book_author}</span></>
-                                    )}
-                                  </p>
-                                  <div className="flex gap-4 mt-1.5 text-xs">
-                                    <span className={myCorrect ? 'text-emerald-700 font-medium' : 'text-red-600'}>
-                                      You: {myCorrect ? 'Correct' : myCorrect === false ? 'Wrong' : 'N/A'}
+                              return (
+                                <li key={i} className="rounded-lg border border-stone-100 p-3 text-sm">
+                                  <div className="flex items-start gap-2">
+                                    <span className="shrink-0 mt-0.5 text-stone-400 font-mono text-xs w-5 text-right">
+                                      {i + 1}.
                                     </span>
-                                    <span className={theirCorrect ? 'text-emerald-700 font-medium' : 'text-red-600'}>
-                                      {opponentName}: {theirCorrect ? 'Correct' : theirCorrect === false ? 'Wrong' : 'N/A'}
-                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-stone-900">{qr.question_text}</p>
+                                      <p className="text-xs text-stone-500 mt-1">
+                                        Answer: <span className="font-medium">{qr.correct_book_title}</span>
+                                        {qr.correct_book_author && (
+                                          <> by <span className="font-medium">{qr.correct_book_author}</span></>
+                                        )}
+                                      </p>
+                                      <div className="flex gap-4 mt-1.5 text-xs">
+                                        <span className={myCorrect ? 'text-emerald-700 font-medium' : 'text-red-600'}>
+                                          You: {myCorrect ? 'Correct' : myCorrect === false ? 'Wrong' : 'N/A'}
+                                        </span>
+                                        <span className={theirCorrect ? 'text-emerald-700 font-medium' : 'text-red-600'}>
+                                          {opponentName}: {theirCorrect ? 'Correct' : theirCorrect === false ? 'Wrong' : 'N/A'}
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="border-t border-stone-100 px-4 py-3 text-center">
+                          <p className="text-sm text-stone-500">No question details available for this match.</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  {isExpanded && (!match.question_results || match.question_results.length === 0) && (
-                    <div className="border-t border-stone-100 px-4 py-3 text-center">
-                      <p className="text-sm text-stone-500">No question details available for this match.</p>
-                    </div>
-                  )}
+                  </div>
                 </div>
               );
             })}

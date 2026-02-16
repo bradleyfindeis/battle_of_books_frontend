@@ -19,6 +19,7 @@ import { BooksAssignmentsPage } from './pages/team/BooksAssignmentsPage';
 import { LeaderboardPage } from './pages/team/LeaderboardPage';
 import { MatchHistoryPage } from './pages/team/MatchHistoryPage';
 import { MyProgressPage } from './pages/team/MyProgressPage';
+import { TeamActivityPage } from './pages/team/TeamActivityPage';
 import { TeamLayout } from './components/TeamLayout';
 import { api } from './api/client';
 
@@ -105,6 +106,7 @@ function App() {
           <Route path="/team" element={<TeamRoute><TeamHome /></TeamRoute>} />
           <Route path="/team/choose-list" element={<TeamRoute><ChooseListGuard><ChooseBookListPage /></ChooseListGuard></TeamRoute>} />
           <Route path="/team/dashboard" element={<TeamRoute><TeamDashboard /></TeamRoute>} />
+          <Route path="/team/activity" element={<TeamRoute><TeamActivityPage /></TeamRoute>} />
           <Route path="/team/management" element={<TeamRoute><TeamManagementPage /></TeamRoute>} />
           <Route path="/team/books" element={<TeamRoute><BooksAssignmentsPage /></TeamRoute>} />
           <Route path="/team/matching-game" element={<TeamRoute><MatchingGamePage /></TeamRoute>} />

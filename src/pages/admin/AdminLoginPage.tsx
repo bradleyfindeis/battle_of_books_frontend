@@ -30,14 +30,14 @@ export function AdminLoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-stone-50 to-stone-200 px-4">
-      <Card padding="p-8" className="w-full max-w-md">
+      <Card padding="p-8" className="w-full max-w-md animate-scale-in">
         <Link to="/" className="inline-flex items-center text-sm text-stone-500 hover:text-stone-700 mb-4 focus:ring-2 focus:ring-primary/20 focus:ring-offset-2 rounded-lg outline-none transition duration-200">
           ← Back to home
         </Link>
         <h1 className="text-3xl font-bold text-center mb-2 tracking-tight text-stone-900">Admin Login</h1>
         <p className="text-stone-600 text-center mb-6">Battle of the Books</p>
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm animate-shake">
             {error}
           </div>
         )}
@@ -65,7 +65,7 @@ export function AdminLoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 transition duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 outline-none font-medium"
+            className="w-full bg-primary-600 text-white py-2.5 rounded-lg hover:bg-primary-700 active:scale-[0.98] transition duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 outline-none font-medium"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>

@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/Card';
 import { api } from '../../api/client';
-import type { MyProgressResponse } from '../../api/client';
+import { starBurst } from '../../utils/confetti';
+import type { MyProgressResponse, Badge } from '../../api/client';
 
 const STATUS_LABELS: Record<string, string> = {
   assigned: 'Not started',
@@ -12,15 +13,31 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function MyProgressPage() {
   const [data, setData] = useState<MyProgressResponse | null>(null);
+  const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .getMyProgress()
-      .then((d) => { if (!cancelled) setData(d); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
+    const fetches = [
+      api
+        .getMyProgress()
+        .then((d) => { if (!cancelled) setData(d); })
+        .catch(() => {}),
+      api.getMyBadges().then((d) => {
+        if (!cancelled) {
+          setBadges(d.badges);
+          const storageKey = 'bob_earned_badges';
+          const prev = new Set<string>(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+          const currentEarned = d.badges.filter((b) => b.earned).map((b) => b.key);
+          const newlyEarned = currentEarned.filter((k) => !prev.has(k));
+          if (newlyEarned.length > 0 && prev.size > 0) {
+            starBurst();
+          }
+          localStorage.setItem(storageKey, JSON.stringify(currentEarned));
+        }
+      }).catch(() => {}),
+    ];
+    Promise.all(fetches).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -80,26 +97,26 @@ export function MyProgressPage() {
 
         {/* Lifetime stats grid */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
-          <Card padding="p-4" className="text-center">
+          <Card padding="p-4" className="text-center animate-fade-in-up stagger-1">
             <p className="text-2xl font-bold text-primary-700">{quiz.total_attempts}</p>
             <p className="text-xs font-medium text-stone-500 mt-1">Quizzes taken</p>
           </Card>
-          <Card padding="p-4" className="text-center">
+          <Card padding="p-4" className="text-center animate-fade-in-up stagger-2">
             <p className="text-2xl font-bold text-violet-700">{matches.total}</p>
             <p className="text-xs font-medium text-stone-500 mt-1">Matches played</p>
           </Card>
-          <Card padding="p-4" className="text-center">
+          <Card padding="p-4" className="text-center animate-fade-in-up stagger-3">
             <p className="text-2xl font-bold text-emerald-700">{reading.books_completed}/{reading.books_total}</p>
             <p className="text-xs font-medium text-stone-500 mt-1">Books completed</p>
           </Card>
-          <Card padding="p-4" className="text-center">
+          <Card padding="p-4" className="text-center animate-fade-in-up stagger-4">
             <p className="text-2xl font-bold text-amber-700">{activity.total_active_days}</p>
             <p className="text-xs font-medium text-stone-500 mt-1">Days active (all time)</p>
           </Card>
         </div>
 
         {/* Quiz score trend */}
-        <Card className="mb-6">
+        <Card className="mb-6 animate-fade-in-up stagger-5">
           <h3 className="text-lg font-semibold text-stone-900 mb-1">Quiz score trend</h3>
           {quiz.recent.length === 0 ? (
             <p className="text-sm text-stone-500 py-4">No quiz attempts yet. Take a quiz to see your progress!</p>
@@ -145,7 +162,7 @@ export function MyProgressPage() {
         </Card>
 
         {/* Match record */}
-        <Card className="mb-6">
+        <Card className="mb-6 animate-fade-in-up stagger-6">
           <h3 className="text-lg font-semibold text-stone-900 mb-3">Match record</h3>
           {matches.total === 0 ? (
             <p className="text-sm text-stone-500 py-2">No matches played yet. Challenge a teammate!</p>
@@ -196,7 +213,7 @@ export function MyProgressPage() {
 
         {/* Reading progress */}
         {reading.books_total > 0 && (
-          <Card className="mb-6">
+          <Card className="mb-6 animate-fade-in-up stagger-7">
             <h3 className="text-lg font-semibold text-stone-900 mb-3">Reading progress</h3>
             <ul className="space-y-3">
               {reading.assignments.map((a, i) => (
@@ -237,8 +254,39 @@ export function MyProgressPage() {
           </Card>
         )}
 
+        {/* Badges */}
+        {badges.length > 0 && (
+          <Card className="mb-6 animate-fade-in-up stagger-8">
+            <h3 className="text-lg font-semibold text-stone-900 mb-3">Badges</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+              {badges.map((badge, idx) => (
+                <div
+                  key={badge.key}
+                  className={`rounded-xl border p-3 text-center transition hover:scale-105 ${
+                    badge.earned
+                      ? 'border-amber-200 bg-amber-50 shadow-sm'
+                      : 'border-stone-200 bg-stone-50 opacity-50'
+                  }`}
+                  style={{ animation: `scale-in 0.3s ease-out ${idx * 60}ms both` }}
+                  title={badge.earned ? `${badge.name} — ${badge.description}` : `${badge.name} (locked) — ${badge.description}`}
+                >
+                  <p className={`text-2xl ${badge.earned ? '' : 'grayscale'}`} aria-hidden>
+                    {badge.emoji}
+                  </p>
+                  <p className={`mt-1 text-xs font-semibold leading-tight ${badge.earned ? 'text-stone-900' : 'text-stone-500'}`}>
+                    {badge.name}
+                  </p>
+                  {badge.progress && (
+                    <p className="mt-0.5 text-[10px] text-stone-500 leading-tight">{badge.progress}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         {/* Activity calendar (last 30 days) */}
-        <Card className="mb-6">
+        <Card className="mb-6 animate-fade-in-up">
           <div className="flex items-baseline justify-between mb-3">
             <h3 className="text-lg font-semibold text-stone-900">Activity (last 30 days)</h3>
             {activity.current_streak > 0 && (

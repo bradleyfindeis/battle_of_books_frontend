@@ -8,6 +8,7 @@ const POLL_INTERVAL_MS = 5000;
 
 const TEAM_LEAD_NAV = [
   { to: '/team/dashboard', label: 'Dashboard' },
+  { to: '/team/activity', label: 'Team activity' },
   { to: '/team/management', label: 'Team management' },
   { to: '/team/books', label: 'Books & assignments' },
 ];
@@ -45,7 +46,7 @@ export function TeamLayout({ children }: { children: React.ReactNode }) {
     <>
       {showBanner && (
         <div
-          className="sticky top-0 z-40 flex items-center justify-between gap-4 border-b-2 border-primary-400 bg-primary-500 px-4 py-2.5 text-white shadow-md"
+          className="sticky top-0 z-40 flex items-center justify-between gap-4 border-b-2 border-primary-400 bg-primary-500 px-4 py-2.5 text-white shadow-md animate-banner-slide"
           role="status"
           aria-live="polite"
         >

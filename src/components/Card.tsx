@@ -12,9 +12,9 @@ interface CardProps {
 }
 
 export function Card({ children, className = '', hover, asModal, padding }: CardProps) {
-  const base = 'card bg-white rounded-2xl shadow-card border border-stone-100 transition-shadow duration-200';
+  const base = 'card bg-white rounded-2xl shadow-card border border-stone-100 transition-all duration-200';
   const paddingClass = asModal ? '' : padding ?? 'p-6';
-  const hoverClass = hover ? 'card-hover hover:shadow-card-hover' : '';
+  const hoverClass = hover ? 'card-hover hover:shadow-card-hover hover:-translate-y-0.5' : '';
   return (
     <div className={`${base} ${paddingClass} ${hoverClass} ${className}`.trim()}>
       {children}

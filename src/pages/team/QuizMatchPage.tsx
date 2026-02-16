@@ -444,7 +444,15 @@ export function QuizMatchPage() {
                 challengerTurn ? 'bg-primary-100 text-primary-800' : 'text-stone-700'
               }`}
             >
-              {match.challenger_avatar && <span className="mr-0.5" aria-hidden>{match.challenger_avatar}</span>}
+              {match.challenger_avatar && (
+                <span
+                  className="mr-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full text-xs"
+                  style={match.challenger_avatar_color ? { backgroundColor: match.challenger_avatar_color } : undefined}
+                  aria-hidden
+                >
+                  {match.challenger_avatar}
+                </span>
+              )}
               {match.challenger_username} {match.challenger_score}
             </span>
             <span className="text-stone-400">–</span>
@@ -453,7 +461,15 @@ export function QuizMatchPage() {
                 opponentTurn ? 'bg-primary-100 text-primary-800' : 'text-stone-700'
               }`}
             >
-              {(match.opponent_avatar ?? match.invited_opponent_avatar) && <span className="mr-0.5" aria-hidden>{match.opponent_avatar ?? match.invited_opponent_avatar}</span>}
+              {(match.opponent_avatar ?? match.invited_opponent_avatar) && (
+                <span
+                  className="mr-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full text-xs"
+                  style={(match.opponent_avatar_color ?? match.invited_opponent_avatar_color) ? { backgroundColor: (match.opponent_avatar_color ?? match.invited_opponent_avatar_color)! } : undefined}
+                  aria-hidden
+                >
+                  {match.opponent_avatar ?? match.invited_opponent_avatar}
+                </span>
+              )}
               {match.opponent_username ?? match.invited_opponent_username} {match.opponent_score}
             </span>
           </div>

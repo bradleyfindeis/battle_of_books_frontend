@@ -1,10 +1,11 @@
 import { createContext, useContext } from 'react';
-import type { User, Team, Admin } from '../api/client';
+import type { User, Team, Admin, ManagedTeam } from '../api/client';
 
 export interface AuthState {
   user: User | null;
   team: Team | null;
   admin: Admin | null;
+  managedTeams: ManagedTeam[];
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -21,6 +22,7 @@ export interface AuthContextType extends AuthState {
   logout: () => void;
   resetPin: (newPin: string) => Promise<void>;
   refreshMe: () => Promise<void>;
+  switchTeam: (teamId: number) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);

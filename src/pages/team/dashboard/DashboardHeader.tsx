@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import type { User, Team } from '../../../api/client';
+import { useState, useEffect, useRef } from 'react';
+import type { User, Team, ManagedTeam } from '../../../api/client';
 
 const AVATAR_OPTIONS = [
   '\u{1F98A}', '\u{1F43C}', '\u{1F981}', '\u{1F42F}', '\u{1F43B}', '\u{1F428}', '\u{1F438}', '\u{1F435}',
@@ -40,6 +40,8 @@ interface DashboardHeaderProps {
   handleLogout: () => void;
   handleExitDemo?: () => void;
   isDemoMode: boolean;
+  managedTeams?: ManagedTeam[];
+  onSwitchTeam?: (teamId: number) => Promise<void>;
 }
 
 export function DashboardHeader({
@@ -55,9 +57,38 @@ export function DashboardHeader({
   handleLogout,
   handleExitDemo,
   isDemoMode,
+  managedTeams,
+  onSwitchTeam,
 }: DashboardHeaderProps) {
   const avatarBg = user.avatar_color || undefined;
   const avatarContainerRef = useRef<HTMLDivElement>(null);
+  const teamSwitcherRef = useRef<HTMLDivElement>(null);
+  const [showTeamSwitcher, setShowTeamSwitcher] = useState(false);
+  const [switching, setSwitching] = useState(false);
+
+  const hasMultipleTeams = managedTeams && managedTeams.length > 1 && onSwitchTeam;
+
+  useEffect(() => {
+    if (!showTeamSwitcher) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (teamSwitcherRef.current && !teamSwitcherRef.current.contains(e.target as Node)) {
+        setShowTeamSwitcher(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showTeamSwitcher]);
+
+  const handleSwitchTeam = async (teamId: number) => {
+    if (!onSwitchTeam || teamId === team.id || switching) return;
+    setSwitching(true);
+    try {
+      await onSwitchTeam(teamId);
+      setShowTeamSwitcher(false);
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   useEffect(() => {
     if (!showAvatarPicker) return;
@@ -174,7 +205,48 @@ export function DashboardHeader({
               )}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-stone-900">Team: {team.name}</h2>
+              <div className="flex gap-1 items-center">
+                {hasMultipleTeams ? (
+                  <div className="relative" ref={teamSwitcherRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowTeamSwitcher((v) => !v)}
+                      className="flex gap-1 items-center text-lg font-semibold transition rounded-md text-stone-900 hover:text-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      aria-label="Switch team"
+                    >
+                      Team: {team.name}
+                      <svg className={`w-4 h-4 text-stone-400 transition-transform ${showTeamSwitcher ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    {showTeamSwitcher && (
+                      <div className="absolute left-0 top-full z-50 mt-1 min-w-[200px] bg-white rounded-xl border shadow-lg border-stone-200 animate-scale-in overflow-hidden">
+                        <p className="px-3 pt-2 pb-1 text-xs font-medium text-stone-400">Your teams</p>
+                        {managedTeams.map((mt) => (
+                          <button
+                            key={mt.id}
+                            type="button"
+                            disabled={switching || mt.id === team.id}
+                            onClick={() => handleSwitchTeam(mt.id)}
+                            className={`w-full text-left px-3 py-2 text-sm transition ${
+                              mt.id === team.id
+                                ? 'bg-primary-50 text-primary-700 font-medium cursor-default'
+                                : 'text-stone-700 hover:bg-stone-50'
+                            } disabled:opacity-60`}
+                          >
+                            <span className="flex justify-between items-center">
+                              {mt.name}
+                              {mt.id === team.id && (
+                                <svg className="w-4 h-4 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                              )}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <h2 className="text-lg font-semibold text-stone-900">Team: {team.name}</h2>
+                )}
+              </div>
               <p className="text-sm text-stone-500">
                 Signed in as {user.username}
                 {user.role === 'team_lead' && (

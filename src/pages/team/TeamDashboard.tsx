@@ -29,6 +29,8 @@ export function TeamDashboard() {
         handleLogout={d.handleLogout}
         handleExitDemo={d.handleExitDemo}
         isDemoMode={d.isDemoMode}
+        managedTeams={d.managedTeams}
+        onSwitchTeam={d.switchTeam}
       />
 
       {d.toastMessage && (

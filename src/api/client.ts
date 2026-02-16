@@ -79,11 +79,17 @@ export interface Admin {
   email: string;
 }
 
+export interface ManagedTeam {
+  id: number;
+  name: string;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;
   team: Team;
   pin_reset_required: boolean;
+  managed_teams?: ManagedTeam[];
 }
 
 export interface AdminAuthResponse {
@@ -473,8 +479,14 @@ class ApiClient {
     return res.data;
   }
 
-  async getMe() {
+  async getMe(): Promise<{ user: User; team: Team; managed_teams?: ManagedTeam[] }> {
     const res = await this.client.get('/me');
+    return res.data;
+  }
+
+  async switchTeam(teamId: number): Promise<AuthResponse> {
+    const res = await this.client.post('/switch_team', { team_id: teamId });
+    localStorage.setItem('token', res.data.token);
     return res.data;
   }
 

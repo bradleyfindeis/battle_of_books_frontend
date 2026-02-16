@@ -13,7 +13,7 @@ import type {
 } from '../../../api/client';
 
 export function useTeamDashboard() {
-  const { user, team, logout, isDemoMode, exitDemo, refreshMe } = useAuth();
+  const { user, team, logout, isDemoMode, exitDemo, refreshMe, managedTeams, switchTeam } = useAuth();
   const navigate = useNavigate();
 
   // ── Data state ──────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ export function useTeamDashboard() {
       .catch(() => { if (!cancelled) setMyBooks([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [user?.role]);
+  }, [user?.role, user?.id]);
 
   // Matching game personal stats
   useEffect(() => {
@@ -93,7 +93,7 @@ export function useTeamDashboard() {
       .then((data) => { if (!cancelled) setMatchingGameHighScore(data.high_score); })
       .catch(() => { if (!cancelled) setMatchingGameHighScore(null); });
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
   // Flashcard personal stats
   useEffect(() => {
@@ -102,7 +102,7 @@ export function useTeamDashboard() {
       .then((data) => { if (!cancelled) setFlashcardDeckTimesCompleted(data.times_completed); })
       .catch(() => { if (!cancelled) setFlashcardDeckTimesCompleted(0); });
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
   // Quiz personal stats
   useEffect(() => {
@@ -112,7 +112,7 @@ export function useTeamDashboard() {
       .then((data) => { if (!cancelled) setQuizHighScore(data.high_score); })
       .catch(() => { if (!cancelled) setQuizHighScore(null); });
     return () => { cancelled = true; };
-  }, [team?.book_list_id]);
+  }, [team?.book_list_id, user?.id]);
 
   // Challengeable teammates
   useEffect(() => {
@@ -122,7 +122,7 @@ export function useTeamDashboard() {
       .then((data) => { if (!cancelled) setChallengeableTeammates(data); })
       .catch(() => { if (!cancelled) setChallengeableTeammates([]); });
     return () => { cancelled = true; };
-  }, [team?.book_list_id]);
+  }, [team?.book_list_id, user?.id]);
 
   // Streak
   useEffect(() => {
@@ -131,7 +131,7 @@ export function useTeamDashboard() {
       .then((data) => { if (!cancelled) { setStreak(data.streak); setActiveToday(data.active_today); } })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
   // Weekly summary
   useEffect(() => {
@@ -140,7 +140,7 @@ export function useTeamDashboard() {
       .then((data) => { if (!cancelled) setWeeklySummary(data); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
   // Team reading progress
   useEffect(() => {
@@ -149,7 +149,7 @@ export function useTeamDashboard() {
       .then((data) => { if (!cancelled) setTeamReading(data); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
   // Daily spotlight question – hide entirely if already answered
   useEffect(() => {
@@ -165,7 +165,7 @@ export function useTeamDashboard() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
   // ── Handlers ────────────────────────────────────────────────────────
 
@@ -356,6 +356,8 @@ export function useTeamDashboard() {
     user,
     team,
     isDemoMode,
+    managedTeams,
+    switchTeam,
 
     // Data
     loading,

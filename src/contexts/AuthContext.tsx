@@ -12,6 +12,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
     team: null,
     admin: null,
+    managedTeams: [],
     isLoading: true,
     isAuthenticated: false,
     isAdmin: false,
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user: data.user,
             team: data.team,
             admin: null,
+            managedTeams: data.managed_teams ?? [],
             isLoading: false,
             isAuthenticated: true,
             isAdmin: false,
@@ -47,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user: null,
           team: null,
           admin: { id: 0, email: '' },
+          managedTeams: [],
           isLoading: false,
           isAuthenticated: false,
           isAdmin: true,
@@ -61,10 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, teamId: number, pinCode: string) => {
     const data = await api.login(username, teamId, pinCode);
+    const meData = await api.getMe();
     setState({
       user: data.user,
       team: data.team,
       admin: null,
+      managedTeams: meData.managed_teams ?? [],
       isLoading: false,
       isAuthenticated: true,
       isAdmin: false,
@@ -75,10 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (inviteCode: string, teamName: string, username: string, email: string, password: string) => {
     const data = await api.register(inviteCode, teamName, username, email, password);
+    const meData = await api.getMe();
     setState({
       user: data.user,
       team: data.team,
       admin: null,
+      managedTeams: meData.managed_teams ?? [],
       isLoading: false,
       isAuthenticated: true,
       isAdmin: false,
@@ -94,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: null,
       team: null,
       admin: data.admin,
+      managedTeams: [],
       isLoading: false,
       isAuthenticated: false,
       isAdmin: true,
@@ -113,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: data.user,
       team: data.team,
       admin: null,
+      managedTeams: [],
       isLoading: false,
       isAuthenticated: true,
       isAdmin: false,
@@ -132,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: null,
       team: null,
       admin: { id: 0, email: '' },
+      managedTeams: [],
       isLoading: false,
       isAuthenticated: false,
       isAdmin: true,
@@ -146,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: null,
       team: null,
       admin: null,
+      managedTeams: [],
       isLoading: false,
       isAuthenticated: false,
       isAdmin: false,
@@ -166,12 +177,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...s,
       user: data.user,
       team: data.team,
+      managedTeams: data.managed_teams ?? s.managedTeams,
       pinResetRequired: data.user.pin_reset_required ?? false,
     }));
   };
 
+  const switchTeam = async (teamId: number) => {
+    const data = await api.switchTeam(teamId);
+    setState((s) => ({
+      ...s,
+      user: data.user,
+      team: data.team,
+      managedTeams: data.managed_teams ?? s.managedTeams,
+      pinResetRequired: data.pin_reset_required ?? false,
+    }));
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, adminLogin, setDemoSession, exitDemo, logout, resetPin, refreshMe }}>
+    <AuthContext.Provider value={{ ...state, login, register, adminLogin, setDemoSession, exitDemo, logout, resetPin, refreshMe, switchTeam }}>
       {children}
     </AuthContext.Provider>
   );

@@ -57,7 +57,11 @@ interface CardItem {
 
 type FlashcardMode = 'title_to_author' | 'author_to_title';
 type Rating = 'got_it' | 'needs_review';
-type VoiceFeedback = { kind: 'correct' | 'wrong'; transcript: string } | { kind: 'error'; message: string } | null;
+type VoiceFeedback =
+  | { kind: 'correct' | 'wrong'; transcript: string }
+  | { kind: 'spell_check'; transcript: string }
+  | { kind: 'error'; message: string }
+  | null;
 
 /** Fisher-Yates shuffle -- returns a new shuffled copy of the array. */
 function shuffle<T>(arr: T[]): T[] {
@@ -69,77 +73,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-/** Normalize a string for comparison: lowercase, strip punctuation, collapse whitespace, remove articles. */
-function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/['']/g, "'")
-    .replace(/[^a-z0-9' ]/g, ' ')
-    .replace(/\b(the|a|an)\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Compute raw similarity between two normalized strings (0-1). */
-function rawSimilarity(na: string, nb: string): number {
-  if (na === nb) return 1;
-  if (!na || !nb) return 0;
-
-  // Containment check -- if one string fully contains the other, it's a strong match.
-  // Helps with short names where speech recognition adds/drops a letter.
-  if (na.includes(nb) || nb.includes(na)) {
-    const shorter = Math.min(na.length, nb.length);
-    const longer = Math.max(na.length, nb.length);
-    // e.g. "hobbs" vs "hobb" → 4/5 = 0.80
-    return shorter / longer;
-  }
-
-  // Token-overlap score
-  const tokensA = na.split(' ');
-  const tokensB = nb.split(' ');
-  const setB = new Set(tokensB);
-  const overlap = tokensA.filter((t) => setB.has(t)).length;
-  const tokenScore = overlap / Math.max(tokensA.length, tokensB.length);
-
-  // LCS ratio
-  const m = na.length;
-  const n = nb.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = na[i - 1] === nb[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-  const lcsScore = (2 * dp[m][n]) / (m + n);
-
-  return Math.max(tokenScore, lcsScore);
-}
-
-/**
- * Compute similarity between two strings (0-1).
- * For author names, the student only needs to say the last name --
- * so we also check the spoken text against just the last word of the
- * correct answer and take the best score.
- */
-function similarity(spoken: string, correct: string): number {
-  const nSpoken = normalize(spoken);
-  const nCorrect = normalize(correct);
-
-  // Full-string comparison
-  let best = rawSimilarity(nSpoken, nCorrect);
-
-  // Also try matching against just the last name (last word) of the correct answer.
-  // e.g. correct="Jason Reynolds" → also accept "Reynolds"
-  const correctWords = nCorrect.split(' ');
-  if (correctWords.length > 1) {
-    const lastName = correctWords[correctWords.length - 1];
-    best = Math.max(best, rawSimilarity(nSpoken, lastName));
-  }
-
-  return best;
-}
-
-const SIMILARITY_THRESHOLD = 0.65;
+import { similarity, AUTO_CORRECT_THRESHOLD, NEAR_MISS_THRESHOLD } from '../../utils/similarity';
 
 /** Detect browser support for SpeechRecognition. */
 const speechSupported =
@@ -176,6 +110,8 @@ export function FlashcardDeckPage() {
   const [useVoice, setUseVoice] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<VoiceFeedback>(null);
+  const [spellInput, setSpellInput] = useState('');
+  const spellInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -219,6 +155,7 @@ export function FlashcardDeckPage() {
     setFlipped(false);
     setRatings({});
     setVoiceFeedback(null);
+    setSpellInput('');
     setListening(false);
     setPhase('deck');
 
@@ -281,19 +218,29 @@ export function FlashcardDeckPage() {
         }
       }
 
-      // Debug: see what was heard vs expected (check browser console if matching seems off)
-      console.log('[Voice] heard:', JSON.stringify(bestTranscript), '| expected:', JSON.stringify(correctAnswer), '| score:', bestScore.toFixed(3), '| threshold:', SIMILARITY_THRESHOLD);
+      console.log('[Voice] heard:', JSON.stringify(bestTranscript), '| expected:', JSON.stringify(correctAnswer), '| score:', bestScore.toFixed(3));
 
-      const isCorrect = bestScore >= SIMILARITY_THRESHOLD;
-      const rating: Rating = isCorrect ? 'got_it' : 'needs_review';
-
-      setVoiceFeedback({ kind: isCorrect ? 'correct' : 'wrong', transcript: bestTranscript });
-      setFlipped(true);
-
-      // Auto-rate after a pause so user can see the feedback
-      autoAdvanceTimerRef.current = setTimeout(() => {
-        handleRate(rating);
-      }, 2000);
+      if (bestScore >= AUTO_CORRECT_THRESHOLD) {
+        // High confidence match → auto-correct
+        setVoiceFeedback({ kind: 'correct', transcript: bestTranscript });
+        setFlipped(true);
+        autoAdvanceTimerRef.current = setTimeout(() => {
+          handleRate('got_it');
+        }, 2000);
+      } else if (bestScore >= NEAR_MISS_THRESHOLD) {
+        // Near miss → ask the student to spell it
+        setVoiceFeedback({ kind: 'spell_check', transcript: bestTranscript });
+        setSpellInput('');
+        // Focus the text input after React renders it
+        setTimeout(() => spellInputRef.current?.focus(), 50);
+      } else {
+        // Clearly wrong
+        setVoiceFeedback({ kind: 'wrong', transcript: bestTranscript });
+        setFlipped(true);
+        autoAdvanceTimerRef.current = setTimeout(() => {
+          handleRate('needs_review');
+        }, 2000);
+      }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -313,6 +260,20 @@ export function FlashcardDeckPage() {
     recognition.start();
   }, [cards, currentIndex, mode, handleRate]);
 
+  // Spell-check: student types the answer to confirm they know it
+  const handleSpellSubmit = useCallback(() => {
+    const card = cards[currentIndex];
+    if (!card) return;
+    const correctAnswer = mode === 'title_to_author' ? card.author : card.title;
+    const score = similarity(spellInput, correctAnswer);
+    const isCorrect = score >= AUTO_CORRECT_THRESHOLD;
+
+    setFlipped(true);
+    setVoiceFeedback({ kind: isCorrect ? 'correct' : 'wrong', transcript: spellInput });
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      handleRate(isCorrect ? 'got_it' : 'needs_review');
+    }, 2000);
+  }, [cards, currentIndex, mode, spellInput, handleRate]);
 
   if (!user || !team) {
     return null;
@@ -592,7 +553,7 @@ export function FlashcardDeckPage() {
         )}
 
         {/* Voice feedback banner */}
-        {voiceFeedback && voiceFeedback.kind !== 'error' && (
+        {voiceFeedback && (voiceFeedback.kind === 'correct' || voiceFeedback.kind === 'wrong') && (
           <div
             className={`mt-4 rounded-lg border p-3 text-center text-sm font-medium ${
               voiceFeedback.kind === 'correct'
@@ -608,6 +569,50 @@ export function FlashcardDeckPage() {
             </p>
           </div>
         )}
+        {voiceFeedback && voiceFeedback.kind === 'spell_check' && (
+          <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <p className="text-sm font-medium text-blue-800 text-center">
+              We heard &ldquo;{voiceFeedback.transcript}&rdquo; &mdash; close! Type the answer to confirm:
+            </p>
+            <form
+              onSubmit={(e) => { e.preventDefault(); handleSpellSubmit(); }}
+              className="mt-3 flex gap-2"
+            >
+              <input
+                ref={spellInputRef}
+                type="text"
+                value={spellInput}
+                onChange={(e) => setSpellInput(e.target.value)}
+                placeholder="Type your answer..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+              <button
+                type="submit"
+                disabled={!spellInput.trim()}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                Check
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={() => {
+                setVoiceFeedback({ kind: 'wrong', transcript: voiceFeedback.transcript });
+                setFlipped(true);
+                autoAdvanceTimerRef.current = setTimeout(() => {
+                  handleRate('needs_review');
+                }, 2000);
+              }}
+              className="mt-2 w-full text-center text-xs text-blue-600 hover:text-blue-800 transition"
+            >
+              I don&apos;t know &mdash; show me the answer
+            </button>
+          </div>
+        )}
         {voiceFeedback && voiceFeedback.kind === 'error' && (
           <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3 text-center text-sm text-stone-600">
             <p>{voiceFeedback.message}</p>
@@ -616,7 +621,10 @@ export function FlashcardDeckPage() {
 
         {/* Action buttons */}
         <div className="mt-8 flex flex-col items-center gap-3">
-          {useVoice && !flipped ? (
+          {voiceFeedback?.kind === 'spell_check' ? (
+            /* Spell-check mode: input is shown above, hide action buttons */
+            null
+          ) : useVoice && !flipped ? (
             /* Voice mode: mic button when card is face-down */
             <>
               <button

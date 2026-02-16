@@ -323,12 +323,12 @@ export function TeamManagementPage() {
           </div>
         </Card>
 
-        {user.role === 'team_lead' && managedTeams.length < 2 && (
+        {user.role === 'team_lead' && managedTeams.length < 6 && (
           <Card className="mt-6">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-stone-900">Create another team</h3>
-                <p className="text-sm text-stone-500 mt-1">You can lead up to 2 teams. Create a second team and go through the full setup flow.</p>
+                <p className="text-sm text-stone-500 mt-1">You can lead up to 6 teams. Create a new team and go through the full setup flow.</p>
               </div>
               <button
                 type="button"

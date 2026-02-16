@@ -69,7 +69,7 @@ export function DashboardHeader({
   const [switching, setSwitching] = useState(false);
 
   const hasMultipleTeams = managedTeams && managedTeams.length > 1 && onSwitchTeam;
-  const canCreateTeam = user.role === 'team_lead' && onCreateTeam && (!managedTeams || managedTeams.length < 2);
+  const canCreateTeam = user.role === 'team_lead' && onCreateTeam && (!managedTeams || managedTeams.length < 6);
   const showTeamDropdown = hasMultipleTeams || canCreateTeam;
 
   useEffect(() => {

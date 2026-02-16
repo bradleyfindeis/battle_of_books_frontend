@@ -85,6 +85,15 @@ function rawSimilarity(na: string, nb: string): number {
   if (na === nb) return 1;
   if (!na || !nb) return 0;
 
+  // Containment check -- if one string fully contains the other, it's a strong match.
+  // Helps with short names where speech recognition adds/drops a letter.
+  if (na.includes(nb) || nb.includes(na)) {
+    const shorter = Math.min(na.length, nb.length);
+    const longer = Math.max(na.length, nb.length);
+    // e.g. "hobbs" vs "hobb" → 4/5 = 0.80
+    return shorter / longer;
+  }
+
   // Token-overlap score
   const tokensA = na.split(' ');
   const tokensB = nb.split(' ');
@@ -130,7 +139,7 @@ function similarity(spoken: string, correct: string): number {
   return best;
 }
 
-const SIMILARITY_THRESHOLD = 0.70;
+const SIMILARITY_THRESHOLD = 0.65;
 
 /** Detect browser support for SpeechRecognition. */
 const speechSupported =
@@ -199,6 +208,10 @@ export function FlashcardDeckPage() {
   }, []);
 
   const startDeck = (selectedMode: FlashcardMode, cardSubset?: CardItem[]) => {
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
     const deckCards = cardSubset ?? allCards;
     setMode(selectedMode);
     setCards(shuffle(deckCards));
@@ -216,6 +229,12 @@ export function FlashcardDeckPage() {
   };
 
   const handleRate = useCallback((rating: Rating) => {
+    // Cancel any pending auto-advance timer from voice mode
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
     setRatings((prev) => {
       const cardId = cards[currentIndex]?.id;
       if (cardId == null) return prev;
@@ -262,6 +281,9 @@ export function FlashcardDeckPage() {
         }
       }
 
+      // Debug: see what was heard vs expected (check browser console if matching seems off)
+      console.log('[Voice] heard:', JSON.stringify(bestTranscript), '| expected:', JSON.stringify(correctAnswer), '| score:', bestScore.toFixed(3), '| threshold:', SIMILARITY_THRESHOLD);
+
       const isCorrect = bestScore >= SIMILARITY_THRESHOLD;
       const rating: Rating = isCorrect ? 'got_it' : 'needs_review';
 
@@ -291,14 +313,6 @@ export function FlashcardDeckPage() {
     recognition.start();
   }, [cards, currentIndex, mode, handleRate]);
 
-  // Clear voice feedback and cancel auto-advance when changing cards
-  useEffect(() => {
-    setVoiceFeedback(null);
-    if (autoAdvanceTimerRef.current) {
-      clearTimeout(autoAdvanceTimerRef.current);
-      autoAdvanceTimerRef.current = null;
-    }
-  }, [currentIndex]);
 
   if (!user || !team) {
     return null;

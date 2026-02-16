@@ -414,5 +414,6 @@ export function useTeamDashboard() {
     handleExitDemo,
     handleChallenge,
     dismissWelcome,
+    navigate,
   };
 }

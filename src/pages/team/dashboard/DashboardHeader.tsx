@@ -42,6 +42,7 @@ interface DashboardHeaderProps {
   isDemoMode: boolean;
   managedTeams?: ManagedTeam[];
   onSwitchTeam?: (teamId: number) => Promise<void>;
+  onCreateTeam?: () => void;
 }
 
 export function DashboardHeader({
@@ -59,6 +60,7 @@ export function DashboardHeader({
   isDemoMode,
   managedTeams,
   onSwitchTeam,
+  onCreateTeam,
 }: DashboardHeaderProps) {
   const avatarBg = user.avatar_color || undefined;
   const avatarContainerRef = useRef<HTMLDivElement>(null);
@@ -67,6 +69,8 @@ export function DashboardHeader({
   const [switching, setSwitching] = useState(false);
 
   const hasMultipleTeams = managedTeams && managedTeams.length > 1 && onSwitchTeam;
+  const canCreateTeam = user.role === 'team_lead' && onCreateTeam && (!managedTeams || managedTeams.length < 2);
+  const showTeamDropdown = hasMultipleTeams || canCreateTeam;
 
   useEffect(() => {
     if (!showTeamSwitcher) return;
@@ -206,7 +210,7 @@ export function DashboardHeader({
             </div>
             <div>
               <div className="flex gap-1 items-center">
-                {hasMultipleTeams ? (
+                {showTeamDropdown ? (
                   <div className="relative" ref={teamSwitcherRef}>
                     <button
                       type="button"
@@ -220,7 +224,7 @@ export function DashboardHeader({
                     {showTeamSwitcher && (
                       <div className="absolute left-0 top-full z-50 mt-1 min-w-[200px] bg-white rounded-xl border shadow-lg border-stone-200 animate-scale-in overflow-hidden">
                         <p className="px-3 pt-2 pb-1 text-xs font-medium text-stone-400">Your teams</p>
-                        {managedTeams.map((mt) => (
+                        {(managedTeams ?? []).map((mt) => (
                           <button
                             key={mt.id}
                             type="button"
@@ -240,6 +244,18 @@ export function DashboardHeader({
                             </span>
                           </button>
                         ))}
+                        {canCreateTeam && (
+                          <>
+                            <div className="border-t border-stone-100" />
+                            <button
+                              type="button"
+                              onClick={() => { setShowTeamSwitcher(false); onCreateTeam(); }}
+                              className="w-full text-left px-3 py-2 text-sm font-medium text-primary-600 hover:bg-primary-50 transition"
+                            >
+                              + Create new team
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

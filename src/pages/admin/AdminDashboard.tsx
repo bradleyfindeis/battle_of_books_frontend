@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { api } from '../../api/client';
-import type { StatsResponse, InviteCode, Team, BookList, BookListItem, AdminQuizQuestion } from '../../api/client';
+import type { StatsResponse, InviteCode, Team, BookList, BookListItem, AdminQuizQuestion, TeamLeadInfo } from '../../api/client';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 export function AdminDashboard() {
@@ -59,6 +59,9 @@ export function AdminDashboard() {
   const [credentialSuccessMessage, setCredentialSuccessMessage] = useState<string | null>(null);
   const [credentialLoading, setCredentialLoading] = useState(false);
   const [credentialError, setCredentialError] = useState('');
+  const [showAssignExistingLead, setShowAssignExistingLead] = useState(false);
+  const [allTeamLeads, setAllTeamLeads] = useState<TeamLeadInfo[]>([]);
+  const [assignLeadLoading, setAssignLeadLoading] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -406,6 +409,35 @@ export function AdminDashboard() {
       await loadData();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleToggleAssignExistingLead = async () => {
+    if (!showAssignExistingLead) {
+      try {
+        const leads = await api.adminGetTeamLeads();
+        setAllTeamLeads(leads);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    setShowAssignExistingLead(!showAssignExistingLead);
+  };
+
+  const handleAssignExistingLead = async (userId: number) => {
+    if (!editingTeam) return;
+    setAssignLeadLoading(true);
+    try {
+      await api.adminAssignExistingLead(editingTeam.id, userId);
+      setShowAssignExistingLead(false);
+      const updated = await api.adminGetTeam(editingTeam.id);
+      setEditingTeam(updated);
+      await loadTeams();
+      await loadData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAssignLeadLoading(false);
     }
   };
 
@@ -996,10 +1028,17 @@ export function AdminDashboard() {
                 </select>
                 <button
                   type="button"
-                  onClick={() => setShowAddTeamLead(!showAddTeamLead)}
+                  onClick={() => { setShowAddTeamLead(!showAddTeamLead); setShowAssignExistingLead(false); }}
                   className="px-2 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50"
                 >
                   {showAddTeamLead ? 'Cancel' : '+ Add new team lead'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { handleToggleAssignExistingLead(); setShowAddTeamLead(false); }}
+                  className="px-2 py-1.5 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50"
+                >
+                  {showAssignExistingLead ? 'Cancel' : '+ Assign existing lead'}
                 </button>
                 {editingTeam.team_lead && resettingCredentialUserId !== editingTeam.team_lead.id && (
                   <button
@@ -1061,6 +1100,44 @@ export function AdminDashboard() {
                     <button type="button" onClick={() => { setShowAddTeamLead(false); setNewTeamLeadUsername(''); setNewTeamLeadEmail(''); setNewTeamLeadPassword(''); }} className="px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">Cancel</button>
                   </div>
                 </form>
+              )}
+              {showAssignExistingLead && (
+                <div className="mt-2 p-3 rounded-lg bg-indigo-50 border border-indigo-200 space-y-2">
+                  <label className="block text-xs font-medium text-stone-700">Select an existing team lead</label>
+                  {(() => {
+                    const teamUserEmails = new Set([
+                      ...(editingTeam.team_lead ? [editingTeam.team_lead.email] : []),
+                      ...(editingTeam.teammates ?? []).map((u) => u.email),
+                    ].filter(Boolean));
+                    const available = allTeamLeads.filter(
+                      (l) => !teamUserEmails.has(l.email) && l.team_id !== editingTeam.id
+                    );
+                    const uniqueByEmail = available.filter(
+                      (l, i, arr) => arr.findIndex((x) => x.email === l.email) === i
+                    );
+                    if (uniqueByEmail.length === 0) {
+                      return <p className="text-sm text-stone-500">No available team leads to assign.</p>;
+                    }
+                    return (
+                      <div className="space-y-1">
+                        {uniqueByEmail.map((lead) => (
+                          <button
+                            key={lead.id}
+                            type="button"
+                            disabled={assignLeadLoading}
+                            onClick={() => handleAssignExistingLead(lead.id)}
+                            className="w-full text-left px-3 py-2 text-sm rounded-lg border border-indigo-100 bg-white hover:bg-indigo-50 transition disabled:opacity-50"
+                          >
+                            <span className="font-medium text-stone-900">{lead.username}</span>
+                            <span className="text-stone-500 ml-1">({lead.email})</span>
+                            <span className="text-stone-400 ml-1">-- leads: {lead.team_name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <button type="button" onClick={() => setShowAssignExistingLead(false)} className="px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">Cancel</button>
+                </div>
               )}
             </div>
 

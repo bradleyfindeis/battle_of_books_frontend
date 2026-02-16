@@ -84,6 +84,15 @@ export interface ManagedTeam {
   name: string;
 }
 
+export interface TeamLeadInfo {
+  id: number;
+  username: string;
+  email: string;
+  team_id: number;
+  team_name: string;
+  managed_team_count: number;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;
@@ -461,6 +470,15 @@ class ApiClient {
     return res.data;
   }
 
+  async createNewTeam(inviteCode: string, teamName: string): Promise<AuthResponse> {
+    const res = await this.client.post('/create_team', {
+      invite_code: inviteCode,
+      team_name: teamName,
+    });
+    localStorage.setItem('token', res.data.token);
+    return res.data;
+  }
+
   async resetPin(newPin: string) {
     return this.client.post('/reset_pin', { new_pin: newPin });
   }
@@ -648,6 +666,16 @@ class ApiClient {
 
   async adminDeleteTeam(id: number): Promise<void> {
     await this.client.delete(`/admin/teams/${id}`);
+  }
+
+  async adminGetTeamLeads(): Promise<TeamLeadInfo[]> {
+    const res = await this.client.get('/admin/team_leads');
+    return res.data;
+  }
+
+  async adminAssignExistingLead(teamId: number, userId: number): Promise<Team> {
+    const res = await this.client.post(`/admin/teams/${teamId}/assign_existing_lead`, { user_id: userId });
+    return res.data;
   }
 
   // Admin: book lists (groups)

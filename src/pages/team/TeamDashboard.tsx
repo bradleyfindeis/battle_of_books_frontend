@@ -31,6 +31,7 @@ export function TeamDashboard() {
         isDemoMode={d.isDemoMode}
         managedTeams={d.managedTeams}
         onSwitchTeam={d.switchTeam}
+        onCreateTeam={() => d.navigate('/team/create-team')}
       />
 
       {d.toastMessage && (

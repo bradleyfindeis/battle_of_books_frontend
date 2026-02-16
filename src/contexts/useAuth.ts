@@ -23,6 +23,7 @@ export interface AuthContextType extends AuthState {
   resetPin: (newPin: string) => Promise<void>;
   refreshMe: () => Promise<void>;
   switchTeam: (teamId: number) => Promise<void>;
+  createTeam: (inviteCode: string, teamName: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);

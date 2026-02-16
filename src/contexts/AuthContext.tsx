@@ -193,8 +193,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const createTeam = async (inviteCode: string, teamName: string) => {
+    const data = await api.createNewTeam(inviteCode, teamName);
+    setState({
+      user: data.user,
+      team: data.team,
+      admin: null,
+      managedTeams: data.managed_teams ?? [],
+      isLoading: false,
+      isAuthenticated: true,
+      isAdmin: false,
+      pinResetRequired: false,
+      isDemoMode: false,
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, adminLogin, setDemoSession, exitDemo, logout, resetPin, refreshMe, switchTeam }}>
+    <AuthContext.Provider value={{ ...state, login, register, adminLogin, setDemoSession, exitDemo, logout, resetPin, refreshMe, switchTeam, createTeam }}>
       {children}
     </AuthContext.Provider>
   );

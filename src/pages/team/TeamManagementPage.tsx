@@ -6,7 +6,7 @@ import { api } from '../../api/client';
 import type { User } from '../../api/client';
 
 export function TeamManagementPage() {
-  const { user, team, logout, isDemoMode, exitDemo, refreshMe } = useAuth();
+  const { user, team, logout, isDemoMode, exitDemo, refreshMe, managedTeams } = useAuth();
   const navigate = useNavigate();
 
   // Team settings
@@ -322,6 +322,24 @@ export function TeamManagementPage() {
             </button>
           </div>
         </Card>
+
+        {user.role === 'team_lead' && managedTeams.length < 2 && (
+          <Card className="mt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-stone-900">Create another team</h3>
+                <p className="text-sm text-stone-500 mt-1">You can lead up to 2 teams. Create a second team and go through the full setup flow.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/team/create-team')}
+                className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 shrink-0"
+              >
+                Create new team
+              </button>
+            </div>
+          </Card>
+        )}
       </div>
       {/* Add teammate modal */}
       {(addTeammateOpen || newTeammatePin) && (

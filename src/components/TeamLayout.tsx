@@ -21,7 +21,7 @@ export function TeamLayout({ children }: { children: React.ReactNode }) {
   const checkPendingInvite = useCallback(() => {
     api
       .getPendingQuizMatchInvite()
-      .then((data) => setPendingInvite(data ?? null))
+      .then((data) => setPendingInvite(data && typeof data === 'object' && 'id' in data ? data : null))
       .catch(() => setPendingInvite(null));
   }, []);
 
@@ -34,6 +34,14 @@ export function TeamLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     checkPendingInvite();
   }, [location.pathname, checkPendingInvite]);
+
+  useEffect(() => {
+    const handler = () => {
+      setPendingInvite(null);
+    };
+    window.addEventListener('quiz-invite-cleared', handler);
+    return () => window.removeEventListener('quiz-invite-cleared', handler);
+  }, []);
 
   const onMatchPage =
     location.pathname.startsWith('/team/quiz-match/') &&

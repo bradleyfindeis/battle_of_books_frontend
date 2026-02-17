@@ -226,10 +226,11 @@ export function QuizMatchPage() {
       if (matchId == null) return;
       try {
         await api.declineQuizMatch(matchId);
-        navigate('/team/dashboard', { replace: true });
       } catch {
-        navigate('/team/dashboard', { replace: true });
+        // decline may fail if match was already cancelled
       }
+      window.dispatchEvent(new Event('quiz-invite-cleared'));
+      navigate('/team/dashboard', { replace: true });
     };
 
     return (

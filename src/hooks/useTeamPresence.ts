@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-function cableUrl(token: string): string {
+function cableUrl(): string {
   const base = API_URL.replace(/^http/, 'ws');
-  const sep = base.includes('?') ? '&' : '?';
-  return `${base}/cable${sep}token=${encodeURIComponent(token)}`;
+  return `${base}/cable`;
 }
 
 /**
@@ -14,13 +13,13 @@ function cableUrl(token: string): string {
  *
  * Includes automatic reconnection with exponential back-off.
  */
-export function useTeamPresence(token: string | null): Set<number> {
+export function useTeamPresence(isConnected: boolean): Set<number> {
   const [onlineIds, setOnlineIds] = useState<Set<number>>(new Set());
   const retryRef = useRef(0);
   const unmountedRef = useRef(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!isConnected) return;
 
     unmountedRef.current = false;
     retryRef.current = 0;
@@ -31,7 +30,7 @@ export function useTeamPresence(token: string | null): Set<number> {
     function connect() {
       if (unmountedRef.current) return;
 
-      const url = cableUrl(token!);
+      const url = cableUrl();
       ws = new WebSocket(url);
 
       ws.onopen = () => {
@@ -75,7 +74,7 @@ export function useTeamPresence(token: string | null): Set<number> {
       if (retryTimeout) clearTimeout(retryTimeout);
       if (ws) ws.close();
     };
-  }, [token]);
+  }, [isConnected]);
 
   return onlineIds;
 }

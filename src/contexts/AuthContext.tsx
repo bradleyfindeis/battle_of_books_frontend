@@ -5,8 +5,6 @@ import type { AuthResponse } from '../api/client';
 import { AuthContext } from './useAuth';
 import type { AuthState } from './useAuth';
 
-const ADMIN_TOKEN_RESTORE_KEY = 'adminTokenRestore';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -21,45 +19,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const adminToken = localStorage.getItem('adminToken');
+    const checkSession = async () => {
+      try {
+        const session = await api.getSession();
+        const hasUser = !!session.user;
+        const hasAdmin = !!session.admin;
 
-    if (token) {
-      api.getMe()
-        .then((data) => {
+        if (hasUser && hasAdmin) {
+          // Both sessions exist: demo mode (admin demoing as a user)
           setState({
-            user: data.user,
-            team: data.team,
-            admin: null,
-            managedTeams: data.managed_teams ?? [],
+            user: session.user!,
+            team: session.team!,
+            admin: session.admin!,
+            managedTeams: session.managed_teams ?? [],
             isLoading: false,
             isAuthenticated: true,
             isAdmin: false,
-            pinResetRequired: data.user.pin_reset_required || false,
+            pinResetRequired: session.pin_reset_required || false,
+            isDemoMode: true,
+          });
+        } else if (hasUser) {
+          setState({
+            user: session.user!,
+            team: session.team!,
+            admin: null,
+            managedTeams: session.managed_teams ?? [],
+            isLoading: false,
+            isAuthenticated: true,
+            isAdmin: false,
+            pinResetRequired: session.pin_reset_required || false,
             isDemoMode: false,
           });
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
+        } else if (hasAdmin) {
+          setState({
+            user: null,
+            team: null,
+            admin: session.admin!,
+            managedTeams: [],
+            isLoading: false,
+            isAuthenticated: false,
+            isAdmin: true,
+            pinResetRequired: false,
+            isDemoMode: false,
+          });
+        } else {
+          // No active session
           setState((s) => ({ ...s, isLoading: false }));
-        });
-    } else if (adminToken) {
-      queueMicrotask(() => {
-        setState({
-          user: null,
-          team: null,
-          admin: { id: 0, email: '' },
-          managedTeams: [],
-          isLoading: false,
-          isAuthenticated: false,
-          isAdmin: true,
-          pinResetRequired: false,
-          isDemoMode: false,
-        });
-      });
-    } else {
-      queueMicrotask(() => setState((s) => ({ ...s, isLoading: false })));
-    }
+        }
+      } catch {
+        // Session check failed entirely
+        setState((s) => ({ ...s, isLoading: false }));
+      }
+    };
+    checkSession();
   }, []);
 
   const login = async (username: string, teamId: number, pinCode: string) => {
@@ -111,16 +123,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const setDemoSession = (data: AuthResponse) => {
-    const adminToken = localStorage.getItem('adminToken');
-    if (adminToken) {
-      sessionStorage.setItem(ADMIN_TOKEN_RESTORE_KEY, adminToken);
-      localStorage.removeItem('adminToken');
-    }
-    localStorage.setItem('token', data.token);
     setState({
       user: data.user,
       team: data.team,
-      admin: null,
+      admin: state.admin,
       managedTeams: [],
       isLoading: false,
       isAuthenticated: true,
@@ -130,17 +136,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const exitDemo = () => {
-    localStorage.removeItem('token');
-    const adminToken = sessionStorage.getItem(ADMIN_TOKEN_RESTORE_KEY);
-    if (adminToken) {
-      localStorage.setItem('adminToken', adminToken);
-      sessionStorage.removeItem(ADMIN_TOKEN_RESTORE_KEY);
-    }
+  const exitDemo = async () => {
+    // Update state immediately so navigation works before the API call resolves
     setState({
       user: null,
       team: null,
-      admin: { id: 0, email: '' },
+      admin: state.admin ?? { id: 0, email: '' },
       managedTeams: [],
       isLoading: false,
       isAuthenticated: false,
@@ -148,10 +149,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pinResetRequired: false,
       isDemoMode: false,
     });
+    try {
+      await api.clearUserSession();
+    } catch {
+      // Best effort; cookies are cleared server-side
+    }
   };
 
-  const logout = () => {
-    api.logout();
+  const logout = async () => {
+    await api.logout();
     setState({
       user: null,
       team: null,
@@ -171,15 +177,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshMe = async () => {
-    if (!localStorage.getItem('token')) return;
-    const data = await api.getMe();
-    setState((s) => ({
-      ...s,
-      user: data.user,
-      team: data.team,
-      managedTeams: data.managed_teams ?? s.managedTeams,
-      pinResetRequired: data.user.pin_reset_required ?? false,
-    }));
+    try {
+      const data = await api.getMe();
+      setState((s) => ({
+        ...s,
+        user: data.user,
+        team: data.team,
+        managedTeams: data.managed_teams ?? s.managedTeams,
+        pinResetRequired: data.user.pin_reset_required ?? false,
+      }));
+    } catch {
+      // Session may have expired
+    }
   };
 
   const switchTeam = async (teamId: number) => {

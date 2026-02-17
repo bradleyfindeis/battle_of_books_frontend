@@ -18,8 +18,8 @@ export interface AuthContextType extends AuthState {
   register: (inviteCode: string, teamName: string, username: string, email: string, password: string) => Promise<{ team_id?: number; username?: string }>;
   adminLogin: (email: string, password: string) => Promise<void>;
   setDemoSession: (data: import('../api/client').AuthResponse) => void;
-  exitDemo: () => void;
-  logout: () => void;
+  exitDemo: () => Promise<void>;
+  logout: () => Promise<void>;
   resetPin: (newPin: string) => Promise<void>;
   refreshMe: () => Promise<void>;
   switchTeam: (teamId: number) => Promise<void>;

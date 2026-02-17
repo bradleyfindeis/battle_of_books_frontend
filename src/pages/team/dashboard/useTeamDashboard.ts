@@ -13,7 +13,7 @@ import type {
 } from '../../../api/client';
 
 export function useTeamDashboard() {
-  const { user, team, logout, isDemoMode, exitDemo, refreshMe, managedTeams, switchTeam } = useAuth();
+  const { user, team, logout, isDemoMode, exitDemo, refreshMe, managedTeams, switchTeam, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   // ── Data state ──────────────────────────────────────────────────────
@@ -54,8 +54,7 @@ export function useTeamDashboard() {
   const [editProgressError, setEditProgressError] = useState<string | null>(null);
 
   // ── Real-time presence ──────────────────────────────────────────────
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const onlineUserIds = useTeamPresence(token);
+  const onlineUserIds = useTeamPresence(isAuthenticated);
 
   const sortedTeammates = useMemo(() => {
     return [...challengeableTeammates].sort((a, b) => {
@@ -248,10 +247,10 @@ export function useTeamDashboard() {
       .finally(() => setEditProgressSubmitting(false));
   };
 
-  const handleChallenge = async (teammateId: number) => {
+  const handleChallenge = async (teammateId: number, difficulty?: import('../../../api/client').QuizDifficulty) => {
     setChallengeSubmitting(true);
     try {
-      const match = await api.createQuizMatch(teammateId);
+      const match = await api.createQuizMatch(teammateId, difficulty);
       navigate(`/team/quiz-match/${match.id}`);
     } catch {
       setToastMessage('Failed to create challenge');

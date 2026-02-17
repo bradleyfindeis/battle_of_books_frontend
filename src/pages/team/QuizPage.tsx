@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { celebrationBurst, smallBurst } from '../../utils/confetti';
 import { useAuth } from '../../contexts/useAuth';
 import { api } from '../../api/client';
-import type { QuizQuestion } from '../../api/client';
+import type { QuizQuestion, QuizDifficulty } from '../../api/client';
 
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
@@ -164,6 +164,7 @@ function ChallengeModal({
 export function QuizPage() {
   const { user, team } = useAuth();
   const [quizMode, setQuizMode] = useState<'all' | 'my_books' | null>(null);
+  const [quizDifficulty, setQuizDifficulty] = useState<QuizDifficulty | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [questionsLoading, setQuestionsLoading] = useState(false);
@@ -207,13 +208,17 @@ export function QuizPage() {
     return () => { cancelled = true; };
   }, [team?.book_list_id]);
 
-  const startQuizWithMode = (mode: 'all' | 'my_books') => {
-    const bookListId = team?.book_list_id;
-    if (!bookListId) return;
+  const selectMode = (mode: 'all' | 'my_books') => {
     setQuizMode(mode);
+  };
+
+  const startQuizWithDifficulty = (difficulty: QuizDifficulty) => {
+    const bookListId = team?.book_list_id;
+    if (!bookListId || !quizMode) return;
+    setQuizDifficulty(difficulty);
     setQuestionsLoading(true);
     api
-      .getQuizQuestions(bookListId, { mode })
+      .getQuizQuestions(bookListId, { mode: quizMode, difficulty })
       .then((data) => {
         setQuestions(shuffle(data));
         setTotalCount(data.length * 2);
@@ -580,7 +585,7 @@ export function QuizPage() {
           <div className="mt-6 space-y-3">
             <button
               type="button"
-              onClick={() => startQuizWithMode('all')}
+              onClick={() => selectMode('all')}
               className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm font-medium text-stone-900 shadow-sm transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
             >
               <span className="font-medium">Random from all 20 books</span>
@@ -588,13 +593,73 @@ export function QuizPage() {
             </button>
             <button
               type="button"
-              onClick={() => startQuizWithMode('my_books')}
+              onClick={() => selectMode('my_books')}
               className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm font-medium text-stone-900 shadow-sm transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
             >
               <span className="font-medium">Focus on my books</span>
               <span className="mt-1 block text-stone-500">
                 {hasMyBooks === false ? 'No books assigned; will use random from all 20.' : 'About 60% from books assigned to you'}
               </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (team.book_list_id && quizMode !== null && quizDifficulty === null) {
+    return (
+      <div className="min-h-screen bg-stone-50">
+        <nav className="border-b border-stone-200 bg-white shadow-sm">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+            <h1 className="text-xl font-bold tracking-tight text-stone-900">Battle of the Books</h1>
+            <button
+              type="button"
+              onClick={() => setQuizMode(null)}
+              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            >
+              Back
+            </button>
+          </div>
+        </nav>
+        <div className="mx-auto max-w-md px-4 py-12">
+          <h2 className="text-lg font-semibold text-stone-900">Choose difficulty</h2>
+          <p className="mt-2 text-stone-600">
+            Mode: <span className="font-medium">{quizMode === 'all' ? 'All 20 books' : 'My books'}</span>
+          </p>
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              onClick={() => startQuizWithDifficulty('easy')}
+              className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm shadow-sm transition duration-200 hover:bg-emerald-50 hover:border-emerald-300 focus:outline focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+            >
+              <span className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">Easy</span>
+                <span className="font-medium text-stone-900">Starter</span>
+              </span>
+              <span className="mt-1 block text-sm text-stone-500">Main characters and big plot points</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => startQuizWithDifficulty('medium')}
+              className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm shadow-sm transition duration-200 hover:bg-amber-50 hover:border-amber-300 focus:outline focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+            >
+              <span className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">Medium</span>
+                <span className="font-medium text-stone-900">Challenge</span>
+              </span>
+              <span className="mt-1 block text-sm text-stone-500">Supporting details and key events</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => startQuizWithDifficulty('hard')}
+              className="w-full rounded-lg border border-stone-200 bg-white px-4 py-3 text-left text-sm shadow-sm transition duration-200 hover:bg-red-50 hover:border-red-300 focus:outline focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            >
+              <span className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">Hard</span>
+                <span className="font-medium text-stone-900">Expert</span>
+              </span>
+              <span className="mt-1 block text-sm text-stone-500">Specific details, quotes, and tricky questions</span>
             </button>
           </div>
         </div>
@@ -693,7 +758,18 @@ export function QuizPage() {
         </nav>
         <div className="mx-auto max-w-3xl px-4 py-12">
           <div className="rounded-2xl bg-white p-6 shadow-card border border-stone-100">
-            <h2 className="text-lg font-semibold text-stone-900">Quiz complete</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-stone-900">Quiz complete</h2>
+              {quizDifficulty && (
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  quizDifficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' :
+                  quizDifficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {quizDifficulty.charAt(0).toUpperCase() + quizDifficulty.slice(1)}
+                </span>
+              )}
+            </div>
             <p className="mt-3 text-lg font-medium text-stone-900">{resultMessage}</p>
             <p className="mt-2 text-stone-600">
               You got {correctCount} out of {totalCount} correct.
@@ -795,8 +871,17 @@ export function QuizPage() {
       </nav>
       <div className="mx-auto max-w-2xl px-4 py-8">
         <div className="mb-2 flex items-center justify-between">
-          <p className="text-sm text-stone-500">
-            Question {currentIndex + 1} of {questions.length}
+          <p className="flex items-center gap-2 text-sm text-stone-500">
+            <span>Question {currentIndex + 1} of {questions.length}</span>
+            {quizDifficulty && (
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                quizDifficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' :
+                quizDifficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
+                'bg-red-100 text-red-700'
+              }`}>
+                {quizDifficulty.charAt(0).toUpperCase() + quizDifficulty.slice(1)}
+              </span>
+            )}
           </p>
           <p className="text-sm font-medium text-stone-700">
             Score: {runningScore + bonusPointsFromChallenges} / {totalCount}

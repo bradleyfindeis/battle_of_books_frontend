@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { api } from '../../api/client';
-import type { StatsResponse, InviteCode, Team, BookList, BookListItem, AdminQuizQuestion, TeamLeadInfo } from '../../api/client';
+import type { StatsResponse, InviteCode, Team, BookList, BookListItem, AdminQuizQuestion, TeamLeadInfo, QuizDifficulty } from '../../api/client';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 export function AdminDashboard() {
@@ -49,9 +49,11 @@ export function AdminDashboard() {
   const [showAddQuestion, setShowAddQuestion] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState('');
   const [newQuestionCorrectBookId, setNewQuestionCorrectBookId] = useState<number | ''>('');
+  const [newQuestionDifficulty, setNewQuestionDifficulty] = useState<QuizDifficulty>('easy');
   const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
   const [editQuestionText, setEditQuestionText] = useState('');
   const [editQuestionCorrectBookId, setEditQuestionCorrectBookId] = useState<number | ''>('');
+  const [editQuestionDifficulty, setEditQuestionDifficulty] = useState<QuizDifficulty>('easy');
   const [showQuizQuestionsModal, setShowQuizQuestionsModal] = useState(false);
   const [resettingCredentialUserId, setResettingCredentialUserId] = useState<number | null>(null);
   const [resetNewPassword, setResetNewPassword] = useState('');
@@ -184,23 +186,26 @@ export function AdminDashboard() {
       const q = await api.adminCreateQuizQuestion(
         editingListId,
         newQuestionText.trim(),
-        Number(newQuestionCorrectBookId)
+        Number(newQuestionCorrectBookId),
+        newQuestionDifficulty
       );
       setQuizQuestions((prev) => [...prev, q].sort((a, b) => a.position - b.position));
       setNewQuestionText('');
       setNewQuestionCorrectBookId('');
+      setNewQuestionDifficulty('easy');
       setShowAddQuestion(false);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleUpdateQuestion = async (questionId: number, text: string, correctBookId: number) => {
+  const handleUpdateQuestion = async (questionId: number, text: string, correctBookId: number, difficulty: QuizDifficulty) => {
     if (editingListId == null) return;
     try {
       const q = await api.adminUpdateQuizQuestion(editingListId, questionId, {
         question_text: text,
         correct_book_list_item_id: correctBookId,
+        difficulty,
       });
       setQuizQuestions((prev) =>
         prev.map((x) => (x.id === questionId ? q : x)).sort((a, b) => a.position - b.position)
@@ -232,6 +237,7 @@ export function AdminDashboard() {
     setEditingQuestionId(q.id);
     setEditQuestionText(q.question_text);
     setEditQuestionCorrectBookId(q.correct_book_list_item_id);
+    setEditQuestionDifficulty(q.difficulty || 'easy');
   };
 
   const handleAddBookToList = async (e: React.FormEvent) => {
@@ -1459,11 +1465,23 @@ export function AdminDashboard() {
                           ))}
                         </select>
                       </div>
+                      <div>
+                        <label className="block text-xs font-medium text-stone-700 mb-1">Difficulty</label>
+                        <select
+                          value={newQuestionDifficulty}
+                          onChange={(e) => setNewQuestionDifficulty(e.target.value as QuizDifficulty)}
+                          className="w-full px-2 py-1.5 border border-stone-300 rounded text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="easy">Easy</option>
+                          <option value="medium">Medium</option>
+                          <option value="hard">Hard</option>
+                        </select>
+                      </div>
                       <div className="flex gap-2">
                         <button type="submit" className="px-2 py-1.5 text-sm font-medium text-white bg-primary-600 rounded hover:bg-primary-700">
                           Save question
                         </button>
-                        <button type="button" onClick={() => { setShowAddQuestion(false); setNewQuestionText(''); setNewQuestionCorrectBookId(''); }} className="px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">
+                        <button type="button" onClick={() => { setShowAddQuestion(false); setNewQuestionText(''); setNewQuestionCorrectBookId(''); setNewQuestionDifficulty('easy'); }} className="px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">
                           Cancel
                         </button>
                       </div>
@@ -1481,7 +1499,7 @@ export function AdminDashboard() {
                             <form
                               onSubmit={(e) => {
                                 e.preventDefault();
-                                handleUpdateQuestion(q.id, editQuestionText, Number(editQuestionCorrectBookId));
+                                handleUpdateQuestion(q.id, editQuestionText, Number(editQuestionCorrectBookId), editQuestionDifficulty);
                               }}
                               className="space-y-2"
                             >
@@ -1505,14 +1523,32 @@ export function AdminDashboard() {
                                   </option>
                                 ))}
                               </select>
+                              <select
+                                value={editQuestionDifficulty}
+                                onChange={(e) => setEditQuestionDifficulty(e.target.value as QuizDifficulty)}
+                                className="w-full px-2 py-1.5 border border-stone-300 rounded text-sm"
+                              >
+                                <option value="easy">Easy</option>
+                                <option value="medium">Medium</option>
+                                <option value="hard">Hard</option>
+                              </select>
                               <div className="flex gap-1">
                                 <button type="submit" className="px-2 py-1 text-xs text-primary-600 hover:bg-primary-50 rounded">Save</button>
-                                <button type="button" onClick={() => { setEditingQuestionId(null); setEditQuestionText(''); setEditQuestionCorrectBookId(''); }} className="px-2 py-1 text-xs text-stone-600 hover:bg-stone-100 rounded">Cancel</button>
+                                <button type="button" onClick={() => { setEditingQuestionId(null); setEditQuestionText(''); setEditQuestionCorrectBookId(''); setEditQuestionDifficulty('easy'); }} className="px-2 py-1 text-xs text-stone-600 hover:bg-stone-100 rounded">Cancel</button>
                               </div>
                             </form>
                           ) : (
                             <>
-                              <div className="text-stone-900">{q.question_text}</div>
+                              <div className="flex items-start gap-2">
+                                <span className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  q.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                                  q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  {(q.difficulty || 'easy').charAt(0).toUpperCase() + (q.difficulty || 'easy').slice(1)}
+                                </span>
+                                <div className="text-stone-900">{q.question_text}</div>
+                              </div>
                               <div className="mt-1 text-stone-600 text-xs">
                                 Correct answer: <span className="font-medium">{q.correct_book_list_item?.title ?? '—'}</span>
                                 {q.correct_book_list_item?.author && <span> — {q.correct_book_list_item.author}</span>}

@@ -3,24 +3,23 @@ import type { QuizMatchState } from '../api/client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-function cableUrl(token: string): string {
+function cableUrl(): string {
   const base = API_URL.replace(/^http/, 'ws');
-  const sep = base.includes('?') ? '&' : '?';
-  return `${base}/cable${sep}token=${encodeURIComponent(token)}`;
+  return `${base}/cable`;
 }
 
 export function useQuizMatchChannel(
   matchId: number | null,
-  token: string | null,
+  isConnected: boolean,
   onState: (state: QuizMatchState) => void
 ): void {
   const onStateRef = useRef(onState);
   onStateRef.current = onState;
 
   useEffect(() => {
-    if (matchId == null || !token) return;
+    if (matchId == null || !isConnected) return;
 
-    const url = cableUrl(token);
+    const url = cableUrl();
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
@@ -45,5 +44,5 @@ export function useQuizMatchChannel(
     return () => {
       ws.close();
     };
-  }, [matchId, token]);
+  }, [matchId, isConnected]);
 }

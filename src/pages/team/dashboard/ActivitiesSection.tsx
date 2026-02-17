@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../../components/Card';
-import type { ChallengeableTeammate, Team } from '../../../api/client';
+import type { ChallengeableTeammate, Team, QuizDifficulty } from '../../../api/client';
 
 interface ActivitiesSectionProps {
   team: Team;
@@ -11,8 +12,14 @@ interface ActivitiesSectionProps {
   challengeableTeammates: ChallengeableTeammate[];
   onlineUserIds: Set<number>;
   challengeSubmitting: boolean;
-  onChallenge: (teammateId: number) => void;
+  onChallenge: (teammateId: number, difficulty: QuizDifficulty) => void;
 }
+
+const DIFFICULTY_OPTIONS: { value: QuizDifficulty; label: string; color: string }[] = [
+  { value: 'easy', label: 'Easy', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
+  { value: 'medium', label: 'Medium', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200' },
+  { value: 'hard', label: 'Hard', color: 'bg-red-100 text-red-700 hover:bg-red-200' },
+];
 
 export function ActivitiesSection({
   team,
@@ -25,6 +32,8 @@ export function ActivitiesSection({
   challengeSubmitting,
   onChallenge,
 }: ActivitiesSectionProps) {
+  const [pickingDifficultyFor, setPickingDifficultyFor] = useState<number | null>(null);
+
   return (
     <div className="mb-6">
       <h3 className="text-lg font-semibold text-stone-900 mb-4">Activities</h3>
@@ -86,34 +95,61 @@ export function ActivitiesSection({
               <ul className="mt-3 space-y-2 flex-1">
                 {sortedTeammates.map((t) => {
                   const isOnline = onlineUserIds.has(t.id);
+                  const isPicking = pickingDifficultyFor === t.id;
                   return (
-                    <li key={t.id} className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2 font-medium text-stone-900">
-                        <span className="relative inline-flex h-2 w-2" title={isOnline ? 'Online' : 'Offline'}>
-                          {isOnline && (
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                          )}
-                          <span className={`relative inline-flex h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-stone-300'}`} />
-                        </span>
-                        {t.avatar_emoji && (
-                          <span
-                            className="inline-flex items-center justify-center w-6 h-6 rounded-full text-sm shrink-0"
-                            style={t.avatar_color ? { backgroundColor: t.avatar_color } : undefined}
-                            aria-hidden
-                          >
-                            {t.avatar_emoji}
+                    <li key={t.id}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-2 font-medium text-stone-900">
+                          <span className="relative inline-flex h-2 w-2" title={isOnline ? 'Online' : 'Offline'}>
+                            {isOnline && (
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                            )}
+                            <span className={`relative inline-flex h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-stone-300'}`} />
                           </span>
-                        )}
-                        {t.username}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={challengeSubmitting}
-                        onClick={() => onChallenge(t.id)}
-                        className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70"
-                      >
-                        {challengeSubmitting ? 'Creating\u2026' : 'Challenge'}
-                      </button>
+                          {t.avatar_emoji && (
+                            <span
+                              className="inline-flex items-center justify-center w-6 h-6 rounded-full text-sm shrink-0"
+                              style={t.avatar_color ? { backgroundColor: t.avatar_color } : undefined}
+                              aria-hidden
+                            >
+                              {t.avatar_emoji}
+                            </span>
+                          )}
+                          {t.username}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={challengeSubmitting}
+                          onClick={() => setPickingDifficultyFor(isPicking ? null : t.id)}
+                          className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70"
+                        >
+                          {challengeSubmitting && isPicking ? 'Creating\u2026' : 'Challenge'}
+                        </button>
+                      </div>
+                      {isPicking && !challengeSubmitting && (
+                        <div className="mt-2 flex gap-2 pl-4">
+                          {DIFFICULTY_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                onChallenge(t.id, opt.value);
+                                setPickingDifficultyFor(null);
+                              }}
+                              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${opt.color}`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setPickingDifficultyFor(null)}
+                            className="rounded-full px-2 py-1 text-xs text-stone-500 hover:text-stone-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </li>
                   );
                 })}

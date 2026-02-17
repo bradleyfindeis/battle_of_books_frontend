@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { AxiosInstance } from 'axios';
+import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 // Types based on our API
@@ -175,10 +175,13 @@ export interface QuizChoice {
   author?: string | null;
 }
 
+export type QuizDifficulty = 'easy' | 'medium' | 'hard';
+
 export interface QuizQuestion {
   id: number;
   question_text: string;
   position: number;
+  difficulty: QuizDifficulty;
   correct_book_list_item_id: number;
   choices: QuizChoice[];
 }
@@ -187,6 +190,7 @@ export interface AdminQuizQuestion {
   id: number;
   question_text: string;
   position: number;
+  difficulty: QuizDifficulty;
   correct_book_list_item_id: number;
   correct_book_list_item: BookListItem;
 }
@@ -284,6 +288,7 @@ export interface QuizMatchState {
   opponent_score: number;
   current_question_index: number;
   total_questions: number;
+  difficulty?: QuizDifficulty | null;
   current_question: QuizMatchCurrentQuestion | null;
   phase_entered_at?: string | null;
   question_results?: QuizMatchQuestionResult[];
@@ -392,6 +397,7 @@ export interface DailyQuestionResponse {
   available: boolean;
   question_id?: number;
   question_text?: string;
+  difficulty?: QuizDifficulty;
   choices?: DailyQuestionChoice[];
   already_answered?: boolean;
   my_choice_id?: number;
@@ -429,6 +435,33 @@ export interface LeaderboardResponse {
   entries: LeaderboardEntry[];
 }
 
+// Session state returned by GET /auth/session
+export interface SessionResponse {
+  user?: User;
+  team?: Team;
+  admin?: Admin;
+  managed_teams?: ManagedTeam[];
+  pin_reset_required?: boolean;
+}
+
+// ─── Refresh interceptor state ──────────────────────────────────────────────
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+function processQueue(error: unknown) {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve();
+    }
+  });
+  failedQueue = [];
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -436,24 +469,72 @@ class ApiClient {
     this.client = axios.create({
       baseURL: API_URL,
       headers: { 'Content-Type': 'application/json' },
+      withCredentials: true,
     });
 
-    this.client.interceptors.request.use((config) => {
-      const isAdminRequest = typeof config.url === 'string' && config.url.includes('/admin/');
-      const token = isAdminRequest
-        ? localStorage.getItem('adminToken')
-        : (localStorage.getItem('token') || localStorage.getItem('adminToken'));
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+    // Response interceptor: on 401, attempt a token refresh then retry
+    this.client.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          // Don't try to refresh if the refresh endpoint itself failed
+          if (originalRequest.url === '/auth/refresh') {
+            return Promise.reject(error);
+          }
+
+          if (isRefreshing) {
+            return new Promise((resolve, reject) => {
+              failedQueue.push({ resolve, reject });
+            }).then(() => this.client(originalRequest));
+          }
+
+          originalRequest._retry = true;
+          isRefreshing = true;
+
+          try {
+            await axios.post(`${API_URL}/auth/refresh`, {}, { withCredentials: true });
+            processQueue(null);
+            return this.client(originalRequest);
+          } catch (refreshError) {
+            processQueue(refreshError);
+            return Promise.reject(refreshError);
+          } finally {
+            isRefreshing = false;
+          }
+        }
+
+        return Promise.reject(error);
       }
-      return config;
-    });
+    );
   }
 
-  // Auth
+  // ── Session management ──────────────────────────────────────────────────
+  async getSession(): Promise<SessionResponse> {
+    const res = await this.client.get<SessionResponse>('/auth/session');
+    return res.data;
+  }
+
+  async refreshSession(): Promise<void> {
+    await this.client.post('/auth/refresh');
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.client.delete('/auth/logout');
+    } catch {
+      // Best-effort; clear local state regardless
+    }
+  }
+
+  async clearUserSession(): Promise<void> {
+    await this.client.delete('/auth/user_session');
+  }
+
+  // ── Auth ────────────────────────────────────────────────────────────────
   async login(username: string, teamId: number, passwordOrPin: string): Promise<AuthResponse> {
     const res = await this.client.post('/login', { username, team_id: teamId, password: passwordOrPin });
-    localStorage.setItem('token', res.data.token);
     return res.data;
   }
 
@@ -466,7 +547,6 @@ class ApiClient {
       password,
       password_confirmation: password,
     });
-    localStorage.setItem('token', res.data.token);
     return res.data;
   }
 
@@ -475,7 +555,6 @@ class ApiClient {
       invite_code: inviteCode,
       team_name: teamName,
     });
-    localStorage.setItem('token', res.data.token);
     return res.data;
   }
 
@@ -504,7 +583,6 @@ class ApiClient {
 
   async switchTeam(teamId: number): Promise<AuthResponse> {
     const res = await this.client.post('/switch_team', { team_id: teamId });
-    localStorage.setItem('token', res.data.token);
     return res.data;
   }
 
@@ -577,7 +655,11 @@ class ApiClient {
   // Admin
   async adminLogin(email: string, password: string): Promise<AdminAuthResponse> {
     const res = await this.client.post('/admin/login', { email, password });
-    localStorage.setItem('adminToken', res.data.token);
+    return res.data;
+  }
+
+  async adminGetMe(): Promise<Admin> {
+    const res = await this.client.get<Admin>('/admin/me');
     return res.data;
   }
 
@@ -726,25 +808,29 @@ class ApiClient {
   async adminCreateQuizQuestion(
     bookListId: number,
     questionText: string,
-    correctBookListItemId: number
+    correctBookListItemId: number,
+    difficulty?: QuizDifficulty
   ): Promise<AdminQuizQuestion> {
-    const res = await this.client.post<AdminQuizQuestion>(`/admin/book_lists/${bookListId}/questions`, {
+    const body: Record<string, unknown> = {
       question_text: questionText,
       correct_book_list_item_id: correctBookListItemId,
-    });
+    };
+    if (difficulty) body.difficulty = difficulty;
+    const res = await this.client.post<AdminQuizQuestion>(`/admin/book_lists/${bookListId}/questions`, body);
     return res.data;
   }
 
   async adminUpdateQuizQuestion(
     bookListId: number,
     questionId: number,
-    data: { question_text?: string; correct_book_list_item_id?: number }
+    data: { question_text?: string; correct_book_list_item_id?: number; difficulty?: QuizDifficulty }
   ): Promise<AdminQuizQuestion> {
     const res = await this.client.patch<AdminQuizQuestion>(
       `/admin/book_lists/${bookListId}/questions/${questionId}`,
       {
         question_text: data.question_text,
         correct_book_list_item_id: data.correct_book_list_item_id,
+        difficulty: data.difficulty,
       }
     );
     return res.data;
@@ -773,10 +859,11 @@ class ApiClient {
   // Quiz
   async getQuizQuestions(
     bookListId: number,
-    options?: { mode?: 'all' | 'my_books' }
+    options?: { mode?: 'all' | 'my_books'; difficulty?: QuizDifficulty }
   ): Promise<QuizQuestion[]> {
     const params = new URLSearchParams();
     if (options?.mode) params.set('mode', options.mode);
+    if (options?.difficulty) params.set('difficulty', options.difficulty);
     const qs = params.toString();
     const url = `/book_lists/${bookListId}/quiz_questions${qs ? `?${qs}` : ''}`;
     const res = await this.client.get<QuizQuestion[]>(url);
@@ -910,8 +997,10 @@ class ApiClient {
     return res.data;
   }
 
-  async createQuizMatch(opponentId: number): Promise<QuizMatchState> {
-    const res = await this.client.post<QuizMatchState>('/quiz_matches', { opponent_id: opponentId });
+  async createQuizMatch(opponentId: number, difficulty?: QuizDifficulty): Promise<QuizMatchState> {
+    const body: Record<string, unknown> = { opponent_id: opponentId };
+    if (difficulty) body.difficulty = difficulty;
+    const res = await this.client.post<QuizMatchState>('/quiz_matches', body);
     return res.data;
   }
 
@@ -1033,11 +1122,6 @@ class ApiClient {
     } catch {
       return { teammates: [] };
     }
-  }
-
-  logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('adminToken');
   }
 }
 

@@ -34,7 +34,7 @@ function Nav() {
 export function QuizMatchPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const matchId = id != null ? parseInt(id, 10) : null;
 
   const [match, setMatch] = useState<QuizMatchState | null>(null);
@@ -48,8 +48,6 @@ export function QuizMatchPage() {
   const [authorsOpen, setAuthorsOpen] = useState(false);
   const [clockDisplaySeconds, setClockDisplaySeconds] = useState<number>(0);
   const timeoutCalledRef = useRef(false);
-
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const isChallenger = user && match && match.challenger_id === user.id;
   const isOpponent = user && match && match.invited_opponent_id === user.id && (match.opponent_id == null || match.opponent_id === user.id);
@@ -95,7 +93,7 @@ export function QuizMatchPage() {
 
   useQuizMatchChannel(
     match?.id ?? null,
-    token,
+    isAuthenticated,
     (state) => {
       setMatch(state);
       const q = state.current_question;
@@ -473,8 +471,17 @@ export function QuizMatchPage() {
               {match.opponent_username ?? match.invited_opponent_username} {match.opponent_score}
             </span>
           </div>
-          <span className="text-sm text-stone-500">
-            Question {match.current_question_index + 1} of {match.total_questions}
+          <span className="flex items-center gap-2 text-sm text-stone-500">
+            <span>Question {match.current_question_index + 1} of {match.total_questions}</span>
+            {match.difficulty && (
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                match.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' :
+                match.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
+                'bg-red-100 text-red-700'
+              }`}>
+                {match.difficulty.charAt(0).toUpperCase() + match.difficulty.slice(1)}
+              </span>
+            )}
           </span>
         </div>
 

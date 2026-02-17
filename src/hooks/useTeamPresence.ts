@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 function cableUrl(): string {
-  const base = API_URL.replace(/^http/, 'ws');
+  const base = API_URL.replace(/^http/, 'ws').replace(/\/+$/, '');
   return `${base}/cable`;
 }
 

@@ -14,6 +14,8 @@ const inputClass =
 
 export function TeamLoginPage() {
   const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
+  const [teamsError, setTeamsError] = useState(false);
   const [teamId, setTeamId] = useState('');
   const [username, setUsername] = useState('');
   const [pinCode, setPinCode] = useState('');
@@ -22,8 +24,21 @@ export function TeamLoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const loadTeams = () => {
+    setTeamsLoading(true);
+    setTeamsError(false);
+    api
+      .getTeams()
+      .then((data: TeamOption[]) => setTeams(data))
+      .catch(() => {
+        setTeams([]);
+        setTeamsError(true);
+      })
+      .finally(() => setTeamsLoading(false));
+  };
+
   useEffect(() => {
-    api.getTeams().then((data: TeamOption[]) => setTeams(data)).catch(() => setTeams([]));
+    loadTeams();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,19 +77,32 @@ export function TeamLoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Team *</label>
-            <select
-              value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
-              className={inputClass}
-              required
-            >
-              <option value="">Select your team</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            {teamsLoading ? (
+              <div className={`${inputClass} text-stone-400 flex items-center`}>Loading teams…</div>
+            ) : teamsError ? (
+              <button
+                type="button"
+                onClick={loadTeams}
+                className={`${inputClass} text-red-500 text-left cursor-pointer`}
+              >
+                Failed to load teams — tap to retry
+              </button>
+            ) : (
+              <select
+                key={teams.length}
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                className={inputClass}
+                required
+              >
+                <option value="">Select your team</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Username *</label>

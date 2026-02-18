@@ -245,11 +245,25 @@ export function FlashcardDeckPage() {
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       setListening(false);
-      const message = event.error === 'no-speech'
-        ? "Didn't catch that -- try again."
-        : event.error === 'not-allowed'
-          ? 'Microphone access denied. Check your browser permissions.'
-          : "Didn't catch that -- try again.";
+      let message: string;
+      switch (event.error) {
+        case 'no-speech':
+          message = "Didn't catch that — try again.";
+          break;
+        case 'not-allowed':
+          message = 'Microphone access denied. Check your browser permissions.';
+          break;
+        case 'service-not-allowed':
+        case 'network':
+          message =
+            'Speech recognition is not available on this device. Try using Chrome on a phone or computer.';
+          break;
+        case 'audio-capture':
+          message = 'No microphone found. Check that a mic is connected.';
+          break;
+        default:
+          message = "Didn't catch that — try again.";
+      }
       setVoiceFeedback({ kind: 'error', message });
     };
 
@@ -257,8 +271,24 @@ export function FlashcardDeckPage() {
       setListening(false);
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      setListening(false);
+      setVoiceFeedback({
+        kind: 'error',
+        message:
+          'Speech recognition is not available on this device. Try using Chrome on a phone or computer.',
+      });
+    }
   }, [cards, currentIndex, mode, handleRate]);
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
+    setListening(false);
+    setVoiceFeedback(null);
+  }, []);
 
   // Spell-check: student types the answer to confirm they know it
   const handleSpellSubmit = useCallback(() => {
@@ -354,7 +384,7 @@ export function FlashcardDeckPage() {
           </div>
 
           {/* Voice toggle */}
-          {speechSupported && (
+          {speechSupported ? (
             <div className="mt-6 flex items-center justify-between rounded-lg border border-stone-200 bg-white px-4 py-3 shadow-sm">
               <div className="flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-stone-500">
@@ -381,6 +411,17 @@ export function FlashcardDeckPage() {
                   }`}
                 />
               </button>
+            </div>
+          ) : (
+            <div className="mt-6 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="mt-0.5 h-5 w-5 shrink-0 text-amber-500">
+                <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
+                <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
+              </svg>
+              <p className="text-sm text-amber-800">
+                Voice input requires <strong>Chrome</strong>, <strong>Edge</strong>, or <strong>Safari</strong>.
+                Open this page in one of those browsers to use the microphone.
+              </p>
             </div>
           )}
         </div>
@@ -629,39 +670,42 @@ export function FlashcardDeckPage() {
             <>
               <button
                 type="button"
-                onClick={startListening}
-                disabled={listening}
+                onClick={listening ? stopListening : startListening}
                 className={`relative flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg transition duration-200 focus:outline focus:ring-2 focus:ring-offset-2 ${
                   listening
-                    ? 'bg-red-500 focus:ring-red-500'
+                    ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500'
                     : 'bg-primary-600 hover:bg-primary-700 focus:ring-primary'
                 }`}
-                aria-label={listening ? 'Listening...' : 'Start speaking'}
+                aria-label={listening ? 'Cancel listening' : 'Start speaking'}
               >
-                {/* Pulsing ring when listening */}
                 {listening && (
                   <span className="absolute inset-0 animate-ping rounded-full bg-red-400 opacity-40" />
                 )}
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="relative h-7 w-7">
-                  <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
-                  <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
-                </svg>
+                {listening ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="relative h-7 w-7">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="relative h-7 w-7">
+                    <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
+                    <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
+                  </svg>
+                )}
               </button>
               <p className="text-xs text-stone-500">
-                {listening ? 'Listening...' : 'Tap the mic and say your answer'}
+                {listening ? 'Tap to cancel' : 'Tap the mic and say your answer'}
               </p>
-              {/* Skip / don't know */}
               <button
                 type="button"
                 onClick={() => {
+                  if (listening) stopListening();
                   setFlipped(true);
                   setVoiceFeedback({ kind: 'wrong', transcript: '' });
                   autoAdvanceTimerRef.current = setTimeout(() => {
                     handleRate('needs_review');
                   }, 2000);
                 }}
-                disabled={listening}
-                className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-600 transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
+                className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-600 transition duration-200 hover:bg-stone-50 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2"
               >
                 I don&apos;t know
               </button>

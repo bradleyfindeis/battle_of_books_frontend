@@ -143,6 +143,13 @@ export function FlashcardDeckPage() {
     };
   }, []);
 
+  // Auto-focus text input on new card when in type-answer mode
+  useEffect(() => {
+    if (phase === 'deck' && useVoice && !speechSupported && !flipped) {
+      setTimeout(() => spellInputRef.current?.focus(), 50);
+    }
+  }, [currentIndex, phase, useVoice, flipped]);
+
   const startDeck = (selectedMode: FlashcardMode, cardSubset?: CardItem[]) => {
     if (autoAdvanceTimerRef.current) {
       clearTimeout(autoAdvanceTimerRef.current);
@@ -186,6 +193,7 @@ export function FlashcardDeckPage() {
       setCurrentIndex((i) => i + 1);
       setFlipped(false);
       setVoiceFeedback(null);
+      setSpellInput('');
     }
   }, [cards, currentIndex]);
 
@@ -383,46 +391,49 @@ export function FlashcardDeckPage() {
             </button>
           </div>
 
-          {/* Voice toggle */}
-          {speechSupported ? (
-            <div className="mt-6 flex items-center justify-between rounded-lg border border-stone-200 bg-white px-4 py-3 shadow-sm">
-              <div className="flex items-center gap-2">
+          {/* Answer mode toggle */}
+          <div className="mt-6 flex items-center justify-between rounded-lg border border-stone-200 bg-white px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              {speechSupported ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-stone-500">
                   <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
                   <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
                 </svg>
-                <div>
-                  <span className="text-sm font-medium text-stone-900">Use voice input</span>
-                  <span className="block text-xs text-stone-500">Say the answer out loud</span>
-                </div>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-stone-500">
+                  <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM8.547 4.505a8.25 8.25 0 1011.672 8.214l-.46-.46a2.252 2.252 0 01-.422-.586l-1.08-2.16a.414.414 0 00-.663-.107.827.827 0 01-.812.21l-1.273-.363a.89.89 0 00-.738.135l-.572.429a2.907 2.907 0 01-1.228.471 2.973 2.973 0 01-.46-.16l-.082-.056a.543.543 0 00-.313-.091c-.408 0-.612.317-.612.317l-.756.378a1.406 1.406 0 01-1.327-.07l-.15-.084a1.397 1.397 0 01-.37-.326c.225.168.578.271.734-.122l.227-.681c.157-.472.038-.996-.325-1.358l-.066-.066-.437-.437a.166.166 0 01.009-.243l.003-.003a.166.166 0 01.149-.037l1.077.307c.29.083.593.029.84-.153l.707-.53a1.76 1.76 0 011.023-.348h.138a.746.746 0 00.535-.228l.053-.06A2.244 2.244 0 008.547 4.505z" clipRule="evenodd" />
+                  <path d="M15.75 8.25a.75.75 0 01.75.75c0 1.243-.503 2.368-1.318 3.182a.75.75 0 11-1.06-1.06A3.003 3.003 0 0015 9a.75.75 0 01.75-.75z" />
+                </svg>
+              )}
+              <div>
+                <span className="text-sm font-medium text-stone-900">
+                  {speechSupported ? 'Use voice input' : 'Type your answer'}
+                </span>
+                <span className="block text-xs text-stone-500">
+                  {speechSupported ? 'Say the answer out loud' : 'Type the title or author'}
+                </span>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={useVoice}
-                onClick={() => setUseVoice((v) => !v)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                  useVoice ? 'bg-primary-600' : 'bg-stone-300'
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={useVoice}
+              onClick={() => setUseVoice((v) => !v)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                useVoice ? 'bg-primary-600' : 'bg-stone-300'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                  useVoice ? 'translate-x-5' : 'translate-x-0'
                 }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
-                    useVoice ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-          ) : (
-            <div className="mt-6 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="mt-0.5 h-5 w-5 shrink-0 text-amber-500">
-                <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
-                <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
-              </svg>
-              <p className="text-sm text-amber-800">
-                Voice input requires <strong>Chrome</strong>, <strong>Edge</strong>, or <strong>Safari</strong>.
-                Open this page in one of those browsers to use the microphone.
-              </p>
-            </div>
+              />
+            </button>
+          </div>
+          {!speechSupported && useVoice && (
+            <p className="mt-2 px-1 text-xs text-stone-500">
+              Microphone is not available on this device. You can type your answers instead.
+            </p>
           )}
         </div>
       </div>
@@ -554,7 +565,7 @@ export function FlashcardDeckPage() {
 
         <p className="mb-4 text-center text-sm text-stone-600">
           {mode === 'title_to_author' ? 'Title → Author' : 'Author → Title'}
-          {useVoice ? ' · Say the answer' : ' · Click the card to flip'}
+          {useVoice ? (speechSupported ? ' · Say the answer' : ' · Type the answer') : ' · Click the card to flip'}
         </p>
 
         <button
@@ -605,7 +616,7 @@ export function FlashcardDeckPage() {
             <p>
               {voiceFeedback.kind === 'correct' ? 'Correct!' : 'Not quite.'}
               {voiceFeedback.transcript
-                ? <>{' '}You said: &ldquo;{voiceFeedback.transcript}&rdquo;</>
+                ? <>{' '}Your answer: &ldquo;{voiceFeedback.transcript}&rdquo;</>
                 : null}
             </p>
           </div>
@@ -666,35 +677,64 @@ export function FlashcardDeckPage() {
             /* Spell-check mode: input is shown above, hide action buttons */
             null
           ) : useVoice && !flipped ? (
-            /* Voice mode: mic button when card is face-down */
+            /* Answer mode: mic button (if supported) or text input */
             <>
-              <button
-                type="button"
-                onClick={listening ? stopListening : startListening}
-                className={`relative flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg transition duration-200 focus:outline focus:ring-2 focus:ring-offset-2 ${
-                  listening
-                    ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500'
-                    : 'bg-primary-600 hover:bg-primary-700 focus:ring-primary'
-                }`}
-                aria-label={listening ? 'Cancel listening' : 'Start speaking'}
-              >
-                {listening && (
-                  <span className="absolute inset-0 animate-ping rounded-full bg-red-400 opacity-40" />
-                )}
-                {listening ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="relative h-7 w-7">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="relative h-7 w-7">
-                    <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
-                    <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
-                  </svg>
-                )}
-              </button>
-              <p className="text-xs text-stone-500">
-                {listening ? 'Tap to cancel' : 'Tap the mic and say your answer'}
-              </p>
+              {speechSupported ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={listening ? stopListening : startListening}
+                    className={`relative flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg transition duration-200 focus:outline focus:ring-2 focus:ring-offset-2 ${
+                      listening
+                        ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500'
+                        : 'bg-primary-600 hover:bg-primary-700 focus:ring-primary'
+                    }`}
+                    aria-label={listening ? 'Cancel listening' : 'Start speaking'}
+                  >
+                    {listening && (
+                      <span className="absolute inset-0 animate-ping rounded-full bg-red-400 opacity-40" />
+                    )}
+                    {listening ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="relative h-7 w-7">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="relative h-7 w-7">
+                        <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
+                        <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
+                      </svg>
+                    )}
+                  </button>
+                  <p className="text-xs text-stone-500">
+                    {listening ? 'Tap to cancel' : 'Tap the mic and say your answer'}
+                  </p>
+                </>
+              ) : (
+                <form
+                  onSubmit={(e) => { e.preventDefault(); handleSpellSubmit(); }}
+                  className="flex w-full max-w-md gap-2"
+                >
+                  <input
+                    ref={spellInputRef}
+                    type="text"
+                    value={spellInput}
+                    onChange={(e) => setSpellInput(e.target.value)}
+                    placeholder={mode === 'title_to_author' ? 'Type the author...' : 'Type the title...'}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    className="flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!spellInput.trim()}
+                    className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition duration-200 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
+                  >
+                    Check
+                  </button>
+                </form>
+              )}
               <button
                 type="button"
                 onClick={() => {

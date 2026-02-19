@@ -636,15 +636,15 @@ export function AdminDashboard() {
             <h2 className="mb-4 text-lg font-semibold text-stone-900">Reading Progress</h2>
             <div className="flex flex-wrap gap-6 sm:gap-8">
               <div className="flex flex-col items-center rounded-lg bg-amber-50 px-6 py-4 min-w-[7rem]">
-                <div className="text-3xl font-bold text-amber-600">{stats.assignments_by_status.assigned}</div>
+                <div className="text-3xl font-bold text-amber-600">{stats.assignments_by_status?.assigned ?? 0}</div>
                 <div className="text-sm font-medium text-stone-600">Not Started</div>
               </div>
               <div className="flex flex-col items-center rounded-lg bg-primary-50 px-6 py-4 min-w-[7rem]">
-                <div className="text-3xl font-bold text-primary-600">{stats.assignments_by_status.in_progress}</div>
+                <div className="text-3xl font-bold text-primary-600">{stats.assignments_by_status?.in_progress ?? 0}</div>
                 <div className="text-sm font-medium text-stone-600">In Progress</div>
               </div>
               <div className="flex flex-col items-center rounded-lg bg-emerald-50 px-6 py-4 min-w-[7rem]">
-                <div className="text-3xl font-bold text-emerald-600">{stats.assignments_by_status.completed}</div>
+                <div className="text-3xl font-bold text-emerald-600">{stats.assignments_by_status?.completed ?? 0}</div>
                 <div className="text-sm font-medium text-stone-600">Completed</div>
               </div>
             </div>

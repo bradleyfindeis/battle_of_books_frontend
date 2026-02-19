@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { api } from '../../api/client';
 import { Card } from '../../components/Card';
@@ -21,7 +21,7 @@ export function TeamLoginPage() {
   const [pinCode, setPinCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
   const loadTeams = () => {
@@ -60,6 +60,10 @@ export function TeamLoginPage() {
       setLoading(false);
     }
   };
+
+  if (!isLoading && isAuthenticated) {
+    return <Navigate to="/team" replace />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-stone-50 to-stone-200 px-4">

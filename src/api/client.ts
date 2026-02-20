@@ -1,7 +1,9 @@
 import axios from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-const API_URL = '/api';
+const API_URL = import.meta.env.PROD
+  ? 'https://battle-of-books-api.onrender.com'
+  : '/api';
 // Types based on our API
 export interface User {
   id: number;

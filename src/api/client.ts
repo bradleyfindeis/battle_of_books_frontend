@@ -492,16 +492,13 @@ class ApiClient {
       withCredentials: true,
     });
 
-    // #region agent log
     this.client.interceptors.request.use((config) => {
       const token = this.adminToken || this.userToken;
       if (token && !config.headers.Authorization) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      console.debug('[debug] request', config.method, config.url, 'hasToken:', !!token);
       return config;
     });
-    // #endregion
 
     // Response interceptor: on 401, attempt a token refresh then retry
     this.client.interceptors.response.use(
@@ -695,9 +692,6 @@ class ApiClient {
   // Admin
   async adminLogin(email: string, password: string): Promise<AdminAuthResponse> {
     const res = await this.client.post('/admin/login', { email, password });
-    // #region agent log
-    console.debug('[debug] adminLogin response token present:', !!res.data.token);
-    // #endregion
     this.setAdminToken(res.data.token);
     return res.data;
   }

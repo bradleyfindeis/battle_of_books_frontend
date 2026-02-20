@@ -442,6 +442,8 @@ export interface SessionResponse {
   admin?: Admin;
   managed_teams?: ManagedTeam[];
   pin_reset_required?: boolean;
+  token?: string;
+  admin_token?: string;
 }
 
 // ─── Refresh interceptor state ──────────────────────────────────────────────
@@ -462,8 +464,24 @@ function processQueue(error: unknown) {
   failedQueue = [];
 }
 
+const TOKEN_KEYS = { user: 'bob_user_token', admin: 'bob_admin_token' } as const;
+
 class ApiClient {
   private client: AxiosInstance;
+  private userToken: string | null = sessionStorage.getItem(TOKEN_KEYS.user);
+  private adminToken: string | null = sessionStorage.getItem(TOKEN_KEYS.admin);
+
+  setUserToken(token: string | null) {
+    this.userToken = token;
+    if (token) sessionStorage.setItem(TOKEN_KEYS.user, token);
+    else sessionStorage.removeItem(TOKEN_KEYS.user);
+  }
+
+  setAdminToken(token: string | null) {
+    this.adminToken = token;
+    if (token) sessionStorage.setItem(TOKEN_KEYS.admin, token);
+    else sessionStorage.removeItem(TOKEN_KEYS.admin);
+  }
 
   constructor() {
     this.client = axios.create({
@@ -471,6 +489,17 @@ class ApiClient {
       headers: { 'Content-Type': 'application/json' },
       withCredentials: true,
     });
+
+    // #region agent log
+    this.client.interceptors.request.use((config) => {
+      const token = this.adminToken || this.userToken;
+      if (token && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      console.debug('[debug] request', config.method, config.url, 'hasToken:', !!token);
+      return config;
+    });
+    // #endregion
 
     // Response interceptor: on 401, attempt a token refresh then retry
     this.client.interceptors.response.use(
@@ -513,6 +542,8 @@ class ApiClient {
   // ── Session management ──────────────────────────────────────────────────
   async getSession(): Promise<SessionResponse> {
     const res = await this.client.get<SessionResponse>('/auth/session');
+    if (res.data.token) this.setUserToken(res.data.token);
+    if (res.data.admin_token) this.setAdminToken(res.data.admin_token);
     return res.data;
   }
 
@@ -526,15 +557,19 @@ class ApiClient {
     } catch {
       // Best-effort; clear local state regardless
     }
+    this.setUserToken(null);
+    this.setAdminToken(null);
   }
 
   async clearUserSession(): Promise<void> {
     await this.client.delete('/auth/user_session');
+    this.setUserToken(null);
   }
 
   // ── Auth ────────────────────────────────────────────────────────────────
   async login(username: string, teamId: number, passwordOrPin: string): Promise<AuthResponse> {
     const res = await this.client.post('/login', { username, team_id: teamId, password: passwordOrPin });
+    this.setUserToken(res.data.token);
     return res.data;
   }
 
@@ -547,6 +582,7 @@ class ApiClient {
       password,
       password_confirmation: password,
     });
+    if (res.data.token) this.setUserToken(res.data.token);
     return res.data;
   }
 
@@ -555,6 +591,7 @@ class ApiClient {
       invite_code: inviteCode,
       team_name: teamName,
     });
+    if (res.data.token) this.setUserToken(res.data.token);
     return res.data;
   }
 
@@ -583,6 +620,7 @@ class ApiClient {
 
   async switchTeam(teamId: number): Promise<AuthResponse> {
     const res = await this.client.post('/switch_team', { team_id: teamId });
+    if (res.data.token) this.setUserToken(res.data.token);
     return res.data;
   }
 
@@ -655,6 +693,10 @@ class ApiClient {
   // Admin
   async adminLogin(email: string, password: string): Promise<AdminAuthResponse> {
     const res = await this.client.post('/admin/login', { email, password });
+    // #region agent log
+    console.debug('[debug] adminLogin response token present:', !!res.data.token);
+    // #endregion
+    this.setAdminToken(res.data.token);
     return res.data;
   }
 
@@ -666,6 +708,7 @@ class ApiClient {
   /** Admin only: get a demo teammate session (seeded team + Medium 20 Book List 3-4). Does not set localStorage. */
   async adminGetDemoTeammateSession(): Promise<AuthResponse> {
     const res = await this.client.post('/admin/demo_teammate');
+    if (res.data.token) this.setUserToken(res.data.token);
     return res.data;
   }
 

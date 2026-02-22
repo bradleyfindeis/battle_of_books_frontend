@@ -67,8 +67,15 @@ export function TeamLayout({ children }: { children: React.ReactNode }) {
   const checkPendingInvite = useCallback(() => {
     api
       .getPendingQuizMatchInvite()
-      .then((data) => setPendingInvite(data && typeof data === 'object' && 'id' in data ? data : null))
-      .catch(() => setPendingInvite(null));
+      .then((data) => {
+        const invite = data && typeof data === 'object' && 'id' in data ? data : null;
+        console.log('[QuizMatch] pending_invite result', invite ? { matchId: (data as { id: number }).id, status: (data as { status?: string }).status } : null);
+        setPendingInvite(invite);
+      })
+      .catch((err) => {
+        console.log('[QuizMatch] pending_invite error', err);
+        setPendingInvite(null);
+      });
   }, []);
 
   useEffect(() => {

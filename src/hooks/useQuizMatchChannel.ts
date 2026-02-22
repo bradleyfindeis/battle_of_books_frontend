@@ -20,6 +20,7 @@ export function useQuizMatchChannel(
     if (matchId == null || !isConnected) return;
 
     const url = cableUrl();
+    console.log('[QuizMatch] channel connecting', { matchId, url: url.replace(/\?.*/, '?…') });
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
@@ -28,17 +29,27 @@ export function useQuizMatchChannel(
         identifier: JSON.stringify({ channel: 'QuizMatchChannel', match_id: matchId }),
       };
       ws.send(JSON.stringify(subscribe));
+      console.log('[QuizMatch] channel subscribe sent', { matchId });
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.message && typeof data.message === 'object') {
-          onStateRef.current(data.message as QuizMatchState);
+          const state = data.message as QuizMatchState;
+          console.log('[QuizMatch] channel message', { matchId: state.id, status: state.status, phase: state.phase });
+          onStateRef.current(state);
         }
       } catch {
         // ignore non-JSON or unexpected frames
       }
+    };
+
+    ws.onclose = (ev) => {
+      console.log('[QuizMatch] channel closed', { matchId, code: ev.code, reason: ev.reason });
+    };
+    ws.onerror = () => {
+      console.log('[QuizMatch] channel error', { matchId });
     };
 
     return () => {

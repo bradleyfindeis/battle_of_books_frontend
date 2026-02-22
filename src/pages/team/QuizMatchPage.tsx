@@ -66,13 +66,11 @@ export function QuizMatchPage() {
     }
     try {
       const data = await api.getQuizMatch(matchId);
-      console.log('[QuizMatch] fetchMatch success', { matchId, status: data.status, opponent_id: data.opponent_id });
       setMatch(data);
       setError(null);
     } catch (e: unknown) {
       const status = e && typeof e === 'object' && 'response' in e ? (e as { response?: { status?: number } }).response?.status : undefined;
       const msg = status === 404 ? 'Match not found' : 'You are not a participant in this match';
-      console.log('[QuizMatch] fetchMatch error', { matchId, status, msg });
       setError(msg);
       setMatch(null);
     } finally {
@@ -159,13 +157,10 @@ export function QuizMatchPage() {
   const handleJoin = async () => {
     if (matchId == null || joining) return;
     setJoining(true);
-    console.log('[QuizMatch] handleJoin start', { matchId });
     try {
       const data = await api.joinQuizMatch(matchId);
-      console.log('[QuizMatch] handleJoin success', { matchId, status: data.status });
       setMatch(data);
-    } catch (err) {
-      console.log('[QuizMatch] handleJoin error', { matchId, err });
+    } catch {
       setError('Failed to join match');
     } finally {
       setJoining(false);

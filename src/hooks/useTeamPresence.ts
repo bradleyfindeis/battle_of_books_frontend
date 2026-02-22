@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
+import { api } from '../api/client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 function cableUrl(): string {
   const base = API_URL.replace(/^http/, 'ws').replace(/\/+$/, '');
-  return `${base}/cable`;
+  const token = api.getUserToken();
+  const path = '/cable';
+  if (token) {
+    const separator = path.includes('?') ? '&' : '?';
+    return `${base}${path}${separator}token=${encodeURIComponent(token)}`;
+  }
+  return `${base}${path}`;
 }
 
 // #region agent log

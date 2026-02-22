@@ -485,6 +485,11 @@ class ApiClient {
     else sessionStorage.removeItem(TOKEN_KEYS.admin);
   }
 
+  /** User JWT for use in WebSocket/cable URL (cross-origin requests do not send cookies). */
+  getUserToken(): string | null {
+    return this.userToken ?? sessionStorage.getItem(TOKEN_KEYS.user);
+  }
+
   constructor() {
     this.client = axios.create({
       baseURL: API_URL,

@@ -84,6 +84,14 @@ export function QuizMatchPage() {
     fetchMatch();
   }, [fetchMatch]);
 
+  // Poll while pending so challenger sees when opponent joins even if WebSocket fails (e.g. incognito)
+  const PENDING_POLL_MS = 2500;
+  useEffect(() => {
+    if (match?.status !== 'pending' || matchId == null) return;
+    const interval = setInterval(fetchMatch, PENDING_POLL_MS);
+    return () => clearInterval(interval);
+  }, [match?.status, matchId, fetchMatch]);
+
   // When entering steal phase with author-only (title was correct), lock book selection
   useEffect(() => {
     const q = match?.current_question;

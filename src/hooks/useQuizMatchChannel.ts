@@ -1,11 +1,18 @@
 import { useEffect, useRef } from 'react';
+import { api } from '../api/client';
 import type { QuizMatchState } from '../api/client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 function cableUrl(): string {
   const base = API_URL.replace(/^http/, 'ws').replace(/\/+$/, '');
-  return `${base}/cable`;
+  const path = '/cable';
+  const token = api.getUserToken();
+  if (token) {
+    const separator = path.includes('?') ? '&' : '?';
+    return `${base}${path}${separator}token=${encodeURIComponent(token)}`;
+  }
+  return `${base}${path}`;
 }
 
 export function useQuizMatchChannel(
